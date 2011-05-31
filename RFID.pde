@@ -5,9 +5,9 @@
  * CC-BY-SA
  *
  * Source = http://wiki.nottinghack.org.uk/wiki/Gatekeeper
- * Target controller = Arduino 328 
+ * Target controller = Arduino 328 (Nanode v5)
  * Clock speed = 16 MHz
- * Development platform = Arduino IDE 002.
+ * Development platform = Arduino IDE 0022
  * C compiler = WinAVR from Arduino IDE 0022
  * 
  * 
@@ -39,26 +39,26 @@ void send_command(int CMD, char* DATA, byte dataLen)
   int checksum;
   byte STX=0xAA;
   byte STATIONID = 0x00;
-  rfid.print(STX,BYTE);
-  rfid.print(STATIONID,BYTE);
+  Serial.print(STX,BYTE);
+  Serial.print(STATIONID,BYTE);
   
   dataLen++;  //add in the command character
-  rfid.print(dataLen,BYTE);
-  rfid.print(CMD,BYTE);
+  Serial.print(dataLen,BYTE);
+  Serial.print(CMD,BYTE);
   
   checksum = (STATIONID ^ dataLen ^ CMD);
 
   for (i=0; i<dataLen-1; i++) {
-    rfid.print(DATA[i],BYTE);
+    Serial.print(DATA[i],BYTE);
     checksum = checksum ^ DATA[i];
   } // end for
   
-  rfid.print(checksum,BYTE);
-  rfid.print(0xBB,BYTE);  
+  Serial.print(checksum,BYTE);
+  Serial.print(0xBB,BYTE);  
 } // end void send_command(int CMD, char* DATA, byte dataLen)
 */
 
-void read_response(char* DATARESP)
+void read_response(char* dataResp)
 {
   byte incomingByte;
   byte responsePtr =0;
@@ -67,9 +67,9 @@ void read_response(char* DATARESP)
       // read the incoming byte:
       if (Serial.available() > 0) {
         incomingByte = Serial.read();
-        DATARESP[responsePtr++]=incomingByte;
+        dataResp[responsePtr++]=incomingByte;
         time = millis();
       } // end if
   } // end while
-  DATARESP[responsePtr]=0;
+  dataResp[responsePtr]=0;
 } // end void read_response(char* DATARESP)

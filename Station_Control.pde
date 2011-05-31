@@ -5,9 +5,9 @@
  * CC-BY-SA
  *
  * Source = http://wiki.nottinghack.org.uk/wiki/Gatekeeper
- * Target controller = Arduino 328 
+ * Target controller = Arduino 328 (Nanode v5)
  * Clock speed = 16 MHz
- * Development platform = Arduino IDE 002.
+ * Development platform = Arduino IDE 0022
  * C compiler = WinAVR from Arduino IDE 0022
  * 
  * 

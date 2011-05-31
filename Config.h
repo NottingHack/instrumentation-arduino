@@ -5,9 +5,9 @@
  * CC-BY-SA
  *
  * Source = http://wiki.nottinghack.org.uk/wiki/Gatekeeper
- * Target controller = Arduino 328 
+ * Target controller = Arduino 328 (Nanode v5)
  * Clock speed = 16 MHz
- * Development platform = Arduino IDE 002.
+ * Development platform = Arduino IDE 0022
  * C compiler = WinAVR from Arduino IDE 0022
  * 
  * 
@@ -38,7 +38,7 @@ byte ip[]     = { 10, 0, 0, 60 }; // Gatekeeper's Reserved IP
 
 // Door Bell Relay
 // Volt Free switching
-#define DOOR_BELL 8
+#define DOOR_BELL 10 // changed for nanode v1 cs 8
 
 // Door Bell Button
 // HIGH = PUSHED
@@ -46,7 +46,7 @@ byte ip[]     = { 10, 0, 0, 60 }; // Gatekeeper's Reserved IP
 #define DOOR_BUTTON 3
 // timeout in mills for how often the doorbell can be rang
 #define DOOR_BUTTON_TIMEOUT 5000
-
+unsigned long doorTimeOut = 0;
 
 // Status Indicator's 
 // BLUE = UNLOCKED
@@ -55,12 +55,13 @@ byte ip[]     = { 10, 0, 0, 60 }; // Gatekeeper's Reserved IP
 #define RED_LED 6
 
 // Magnetic Door Contact
-#define MAG_CON 4
+#define MAG_CON 9
 #define CLOSED HIGH
 #define OPEN LOW
+boolean magConState = CLOSED;
 
 // Magnetic Door Relase
-#define MAG_REL 9
+#define MAG_REL 4
 #define UNLOCK HIGH
 #define LOCK LOW
 
@@ -70,13 +71,26 @@ byte ip[]     = { 10, 0, 0, 60 }; // Gatekeeper's Reserved IP
 // RFID module Serial 9600N1
 #define RFID_TX 0
 #define RFID_RX 1
-
+// query to read a serial number
 byte query[8] = {
   0xAA, 0x00, 0x03, 0x25, 0x26, 0x00, 0x00, 0xBB};
+unsigned char rfidReturn[255] = {};
+unsigned long lastCardNumber;
+// timeout in mills for how often the same card is read
+#define CARD_TIMEOUT 3000
+unsigned long cardTimeOut = 0;
 
 // Keypad INT
 #define KEYPAD A3
 
+//Speaker
+#define SPEAKER A2
+
+//Last Man Out
+#define LAST_MAN A1
+#define IN HIGH
+#define OUT LOW
+boolean lastManState = OUT;
 
 // MQTT 
 
@@ -92,11 +106,11 @@ byte server[] = { 10, 0, 0, 2 };
 
 // Publish Topics
 
-#define P_DOOR_STATE	"nh/gk/DoorState"
-#define P_KEYPAD		"nh/gk/Keypad"
-#define P_DOOR_BUTTON	"nh/gk/DoorButton"
-#define P_RFID			"nh/gk/RFID"
-
+#define P_DOOR_STATE		"nh/gk/DoorState"
+#define P_KEYPAD			"nh/gk/Keypad"
+#define P_DOOR_BUTTON		"nh/gk/DoorButton"
+#define P_RFID				"nh/gk/RFID"
+#define P_LAST_MAN_STATE	"nh/gk/LastManState"
 
 
 
