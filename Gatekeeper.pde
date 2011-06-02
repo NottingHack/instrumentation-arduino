@@ -29,17 +29,22 @@
  	001 - Initial release 
  
  Known issues:
- DEBUG_PRTINT and USB Serial Will NOT WORK if the RFID module is plugged in as this uses the hardware serial
+    DEBUG_PRTINT and USB Serial Will NOT WORK if the RFID module is plugged in as this uses the hardware serial
+	All code is based on official Ethernet library not the nanode's ENC28J60, we need to port the MQTT PubSubClient
+	
  
  Future changes:
- 	None
+ 	Find a better way than 3 sec delay to get keys in buffer
+		Make keypad interactive with LCD and use ent/clr to build pin numbers? 
+		Requires rewrite of 001 lcd default handling
+	Better Handling of the Backdoor
+		Allow change via mqtt, store in eeprom
  
  ToDo:
- 	Lots
 	Add Last Will and Testament
-	Better Handling of the Backdoor
-	Find a better way than 3 sec delay to get keys in buffer
-		Make interactive with LCD and use ent/clr
+	Add msg unlock(); 
+		Something like unlock(char* who); so we can publish with the door open/timeout?
+	
 	
  Authors:
  'RepRap' Matt      dps.lwk at gmail.com
@@ -60,12 +65,30 @@
 #include "Config.h"
 #include "Backdoor.h"
 
-void callback(char* topic, byte* payload,int length) {
+void callbackMQTT(char* topic, byte* payload,int length) {
+
   // handle message arrived
-  // TODO
+  if (topic == S_UNLOCK) {
+	  // check for unlock, rest of payload is msg for lcd
+	  if (strcmp(UNLOCK_STRING, payload) < 0) {
+		  // strip UNLOCK_STRING, send rest to LCD
+		  char* msg;
+		  msg = strtok(payload, UNLOCK_DELIM);
+		  msg = strtok(NULL, UNLOCK_DELIM);
+		  updateLCD(msg);
+		  // unlock the door
+		  unlock();
+		  
+	  } else {
+		  // send the whole payload to LCD
+		  updateLCD(payload);
+		  
+	  }// end if else
+  } // end if
+  
 } // end void callback(char* topic, byte* payload,int length)
 
-PubSubClient client(server, MQTT_PORT, callback);
+PubSubClient client(server, MQTT_PORT, callbackMQTT);
 
 
 void setup()
@@ -87,11 +110,10 @@ void setup()
 	digitalWrite(DOOR_BELL, LOW);
 	lockDoor();
 	
-	
 	// Start I2C and display system detail
 	Wire.begin();
 	clearLCD();
-	sendStr("Gatekeeper Version: VERSION_NUM");
+	updateLCD("Gatekeeper Version: VERSION_NUM");
 	
 	// Start RFID Serial
 	Serial.begin(9600);
@@ -116,6 +138,7 @@ void loop()
 	pollRFID();
 	
 	// Poll Magnetic Contact
+	// has the door been opened likely some one left
 	pollMagCon();
 	
 	// Poll MQTT
@@ -123,10 +146,16 @@ void loop()
 	client.loop();
 	
 	// Poll Keypad
+	// do we have a pin number
 	pollKeypad();
 	
 	// Poll Last Man Out
+	// anyone in the building
 	pollLastMan();
+	
+	// Poll LCD
+	// updates to default msg after time out
+	updateLCD();
 	
 } // end void loop()
 
@@ -148,21 +177,26 @@ void pollRFID()
 	if (rfidReturn[3] == 0 && rfidReturn[2] >= 6) {
 	    unsigned long time = millis();
 		// garb first digit of serial
-		unsigned long cardNumber = rfidReturn[4];
+		unsigned long cardNumber = rfidReturn[5];
 		// loop for the rest
-		for (int j=1; j < (rfidReturn[2] - 1); j++) {
-			cardNumber = (cardNumber << 8) | rfidReturn[j+4];
+		for (int j=1; j < (rfidReturn[2] - 2); j++) {
+			cardNumber = (cardNumber << 8) | rfidReturn[j+5];
 		} // end for
 		
 		// check we are not reading the same card again or if we are its been a sensible time since last read it
 		if (cardNumber != lastCardNumber || (millis() - cardTimeOut) > CARD_TIMEOUT) {
 			lastCardNumber = cardNumber;
 			cardTimeOut = millis();
-			client.Publish(P_RFID, cardNumber);
+			// convert cardNumber to a string array
+			char cardBuf[20];
+			ltoa(cardNumber, cardBuf, 10);
+			client.publish(P_RFID, cardBuf);
 		} // end if
+	
+	// theres a card but we cant read it
 	} else if (rfidReturn[3] == 1 && rfidReturn[4] != 131 && (millis() - cardTimeOut) > CARD_TIMEOUT) {
 		cardTimeOut = millis();
-		client.Publish(P_RFID, "Unknown Card Type");
+		client.publish(P_RFID, "Unknown Card Type");
 	} // end else if 
 } // end void pollRFID()
 
@@ -260,8 +294,6 @@ void pollLastMan()
 		lastManState = state;
 		
 	} // end if
-	
-
 } // end void pollLastMan()
 
 
@@ -278,6 +310,22 @@ void doorButton()
 	} // end if
 } // end void doorButton()
 
+
+/**************************************************** 
+ * Main Door unlock routine
+ *  
+ ****************************************************/
+void updateLCD(char* msg = NULL)
+{
+	if (msg != NULL) {
+	    lcdTimeOut = millis();
+		lcdState = CUSTOM;
+		sendStr(msg);
+	} else if ((millis() - lcdTimeOut) > lcd_TIMEOUT && lcdSate != DEFAULT) {
+	    lcdTimeOut = millis();
+		sendStr(LCD_DEFAULT);
+	} // end else if
+} // end void 
 
 /**************************************************** 
  * Main Door unlock routine
@@ -316,7 +364,6 @@ void unlock()
 		client.publish(P_DOOR_STATE, "Door Time Out");
 		
 	} // end else
-
 } // end void unlock()
 
 

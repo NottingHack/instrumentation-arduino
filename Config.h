@@ -24,21 +24,19 @@
 
 /*
   These are the global config parameters for Gatekeeper
-  Including Pin Outs and IP
+  Including Pin Outs, IP's, TimeOut's etc
   
 */
 
 
 // Update these with values suitable for your network.
-byte mac[]    = {  0xDE, 0xED, 0xBA, 0xFE, 0xFE, 0xED };
-byte ip[]     = { 10, 0, 0, 60 }; // Gatekeeper's Reserved IP
-
-
-
+byte mac[]    = {  0xDE, 0xED, 0xBA, 0xFE, 0xFE, 0xED }; // ***LWK*** should randomise this, or use nanode on chip mac, if we have pins :/ and code
+// Gatekeeper's Reserved IP
+byte ip[]     = { 10, 0, 0, 60 }; 
 
 // Door Bell Relay
 // Volt Free switching
-#define DOOR_BELL 10 // changed for nanode v1 cs 8
+#define DOOR_BELL 10 // ***LWK*** changed for nanode v1 cs 8
 
 // Door Bell Button
 // HIGH = PUSHED
@@ -60,12 +58,14 @@ unsigned long doorTimeOut = 0;
 #define OPEN LOW
 boolean magConState = CLOSED;
 
-// Magnetic Door Relase
+// Magnetic Door Release
 #define MAG_REL 4
 #define UNLOCK HIGH
 #define LOCK LOW
+#define UNLOCK_STRING "Unlock:"
+#define UNLOCK_DELIM ":"
 
-// timeout in millis for the how long the magnetic relase will stay unlocked
+// timeout in millis for the how long the magnetic release will stay unlocked
 #define MAG_REL_TIMEOUT 5000
 
 // RFID module Serial 9600N1
@@ -82,6 +82,15 @@ unsigned long cardTimeOut = 0;
 
 // Keypad INT
 #define KEYPAD A3
+
+// LCD
+// timeout in mills for how long a msg is displayed
+#define LCD_DEFAULT "Welcome to Nottingham Hackspace"
+#define LCD_TIMEOUT 5000
+unsigned long lcdTimeOut = 0;
+byte lcdState = 0;
+#define DEFAULT 0
+#define CUSTOM 1
 
 //Speaker
 #define SPEAKER A2
@@ -111,7 +120,6 @@ byte server[] = { 10, 0, 0, 2 };
 #define P_DOOR_BUTTON		"nh/gk/DoorButton"
 #define P_RFID				"nh/gk/RFID"
 #define P_LAST_MAN_STATE	"nh/gk/LastManState"
-
 
 
 // Status Topic, use to say we are alive or DEAD (will)

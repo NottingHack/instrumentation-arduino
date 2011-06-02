@@ -58,7 +58,7 @@ void send_command(int CMD, char* DATA, byte dataLen)
 } // end void send_command(int CMD, char* DATA, byte dataLen)
 */
 
-void read_response(char* dataResp)
+void read_response(unsigned char* dataResp)
 {
   byte incomingByte;
   byte responsePtr =0;
