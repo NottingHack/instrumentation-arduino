@@ -306,7 +306,10 @@ void doorButton()
 	if((millis() - doorTimeOut) > DOOR_BUTTON_TIMEOUT) {
 	    // reset time out
 	    doorTimeOut = millis();
+		digitalWrite(DOOR_BELL, HIGH);
 		client.publish(P_DOOR_BUTTON, "BING");
+		delay(DOOR_BELL_LENGTH);
+		digitalWrite(DOOR_BELL, LOW);
 	} // end if
 } // end void doorButton()
 

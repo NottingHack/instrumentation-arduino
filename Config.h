@@ -26,6 +26,9 @@
   These are the global config parameters for Gatekeeper
   Including Pin Outs, IP's, TimeOut's etc
   
+  Arduino Wiznet sheild uses pings 10, 11, 12, 13 for the ethernet
+  Nanode v5 uses pins 8, 11, 12, 13 for the ethernet
+  
 */
 
 
@@ -36,7 +39,8 @@ byte ip[]     = { 10, 0, 0, 60 };
 
 // Door Bell Relay
 // Volt Free switching
-#define DOOR_BELL 10 // ***LWK*** changed for nanode v1 cs 8
+#define DOOR_BELL 10 
+#define DOOR_BELL_LENGTH 250
 
 // Door Bell Button
 // HIGH = PUSHED
