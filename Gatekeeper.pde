@@ -65,15 +65,15 @@
 #include "Config.h"
 #include "Backdoor.h"
 
-void callbackMQTT(char* topic, byte* payload,int length) {
+void callbackMQTT(char* topic, byte* payload, int length) {
 
   // handle message arrived
   if (topic == S_UNLOCK) {
 	  // check for unlock, rest of payload is msg for lcd
-	  if (strcmp(UNLOCK_STRING, payload) < 0) {
+	  if (strcmp(UNLOCK_STRING, (char*)payload) < 0) {
 		  // strip UNLOCK_STRING, send rest to LCD
 		  char* msg;
-		  msg = strtok(payload, UNLOCK_DELIM);
+		  msg = strtok((char*)payload, UNLOCK_DELIM);
 		  msg = strtok(NULL, UNLOCK_DELIM);
 		  updateLCD(msg);
 		  // unlock the door
@@ -81,7 +81,7 @@ void callbackMQTT(char* topic, byte* payload,int length) {
 		  
 	  } else {
 		  // send the whole payload to LCD
-		  updateLCD(payload);
+		  updateLCD((char*)payload);
 		  
 	  }// end if else
   } // end if
@@ -155,7 +155,7 @@ void loop()
 	
 	// Poll LCD
 	// updates to default msg after time out
-	updateLCD();
+	updateLCD(NULL);
 	
 } // end void loop()
 
@@ -318,14 +318,15 @@ void doorButton()
  * Main Door unlock routine
  *  
  ****************************************************/
-void updateLCD(char* msg = NULL)
+void updateLCD(char* msg)
 {
 	if (msg != NULL) {
 	    lcdTimeOut = millis();
 		lcdState = CUSTOM;
 		sendStr(msg);
-	} else if ((millis() - lcdTimeOut) > lcd_TIMEOUT && lcdSate != DEFAULT) {
+	} else if ((millis() - lcdTimeOut) > LCD_TIMEOUT && lcdState != DEFAULT) {
 	    lcdTimeOut = millis();
+		lcdState = DEFAULT;
 		sendStr(LCD_DEFAULT);
 	} // end else if
 } // end void 

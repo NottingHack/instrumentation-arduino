@@ -109,7 +109,7 @@ boolean lastManState = OUT;
 
 // MQTT server on holly
 byte server[] = { 10, 0, 0, 2 };
-#define MQTT_PORT 83
+#define MQTT_PORT 1983
 
 // ClientId for connecting to MQTT
 #define CLIENT_ID "Gatekeeper"
