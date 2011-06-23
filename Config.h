@@ -39,8 +39,10 @@ byte ip[]     = { 10, 0, 0, 60 };
 
 // Door Bell Relay
 // Volt Free switching
-#define DOOR_BELL 10 
+// ***LWK*** use pin 10 for nanode v5 or pin 8 for wiznet, dont forget to move soldered line on the proto sheild (needs a jumper)
+#define DOOR_BELL 8 
 #define DOOR_BELL_LENGTH 250
+
 
 // Door Bell Button
 // HIGH = PUSHED
@@ -49,6 +51,7 @@ byte ip[]     = { 10, 0, 0, 60 };
 // timeout in mills for how often the doorbell can be rang
 #define DOOR_BUTTON_TIMEOUT 5000
 unsigned long doorTimeOut = 0;
+boolean doorButtonState = 0;
 
 // Status Indicator's 
 // BLUE = UNLOCKED
@@ -109,7 +112,7 @@ boolean lastManState = OUT;
 
 // MQTT server on holly
 byte server[] = { 10, 0, 0, 2 };
-#define MQTT_PORT 1983
+#define MQTT_PORT 1883
 
 // ClientId for connecting to MQTT
 #define CLIENT_ID "Gatekeeper"

@@ -68,7 +68,7 @@
 void callbackMQTT(char* topic, byte* payload, int length) {
 
   // handle message arrived
-  if (topic == S_UNLOCK) {
+  if (!strcmp(S_UNLOCK, topic)) {
 	  // check for unlock, rest of payload is msg for lcd
 	  if (strcmp(UNLOCK_STRING, (char*)payload) < 0) {
 		  // strip UNLOCK_STRING, send rest to LCD
@@ -156,6 +156,10 @@ void loop()
 	// Poll LCD
 	// updates to default msg after time out
 	updateLCD(NULL);
+	
+	// Poll Door Bell
+	// has the button been press
+	pollDoorBell();
 	
 } // end void loop()
 
@@ -296,6 +300,22 @@ void pollLastMan()
 	} // end if
 } // end void pollLastMan()
 
+/**************************************************** 
+ * Has the door bell button been pressed
+ * state is set from interupt routine
+ *
+ ****************************************************/
+void pollDoorBell() 
+{
+	if(doorButtonState) {
+	    // clear state 
+		doorButtonState = 0;
+		digitalWrite(DOOR_BELL, HIGH);
+		client.publish(P_DOOR_BUTTON, "BING");
+		delay(DOOR_BELL_LENGTH);
+		digitalWrite(DOOR_BELL, LOW);
+	} // end if
+}
 
 /**************************************************** 
  * Interrupt method for door bell button
@@ -306,11 +326,8 @@ void doorButton()
 	if((millis() - doorTimeOut) > DOOR_BUTTON_TIMEOUT) {
 	    // reset time out
 	    doorTimeOut = millis();
-		digitalWrite(DOOR_BELL, HIGH);
-		client.publish(P_DOOR_BUTTON, "BING");
-		delay(DOOR_BELL_LENGTH);
-		digitalWrite(DOOR_BELL, LOW);
-	} // end if
+		doorButtonState = 1;
+	}
 } // end void doorButton()
 
 
@@ -323,10 +340,12 @@ void updateLCD(char* msg)
 	if (msg != NULL) {
 	    lcdTimeOut = millis();
 		lcdState = CUSTOM;
+		clearLCD();
 		sendStr(msg);
 	} else if ((millis() - lcdTimeOut) > LCD_TIMEOUT && lcdState != DEFAULT) {
 	    lcdTimeOut = millis();
 		lcdState = DEFAULT;
+		clearLCD();
 		sendStr(LCD_DEFAULT);
 	} // end else if
 } // end void 
