@@ -193,7 +193,7 @@ void pollRFID()
 			cardTimeOut = millis();
 			// convert cardNumber to a string array
 			char cardBuf[20];
-			ltoa(cardNumber, cardBuf, 10);
+			ultoa(cardNumber, cardBuf, 10);
 			client.publish(P_RFID, cardBuf);
 		} // end if
 	
