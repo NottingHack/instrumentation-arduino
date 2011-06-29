@@ -53,6 +53,7 @@
  */
 
 #define VERSION_NUM 001
+#define VERSION_STRING "Gatekeeper Ver: 001"
 
 // Uncomment for debug prints
 // This will not work if the RFID module IS plugged in!!
@@ -67,25 +68,38 @@
 
 void callbackMQTT(char* topic, byte* payload, int length) {
 
-  // handle message arrived
-  if (!strcmp(S_UNLOCK, topic)) {
-	  // check for unlock, rest of payload is msg for lcd
-	  if (strcmp(UNLOCK_STRING, (char*)payload) < 0) {
-		  // strip UNLOCK_STRING, send rest to LCD
-		  char* msg;
-		  msg = strtok((char*)payload, UNLOCK_DELIM);
-		  msg = strtok(NULL, UNLOCK_DELIM);
-		  updateLCD(msg);
-		  // unlock the door
-		  unlock();
-		  
-	  } else {
-		  // send the whole payload to LCD
-		  updateLCD((char*)payload);
-		  
-	  }// end if else
-  } // end if
-  
+	// handle message arrived
+	if (!strcmp(S_UNLOCK, topic)) {
+		// check for unlock, rest of payload is msg for lcd
+		if (strcmp(UNLOCK_STRING, (char*)payload) < 0) {
+			// strip UNLOCK_STRING, send rest to LCD
+			char msg[length - sizeof(UNLOCK_STRING) + 2];
+			memset(msg, 0, sizeof(msg));
+			for(int i = 0; i < (sizeof(msg) - 1); i++) {
+				msg[i] = (char)payload[i + sizeof(UNLOCK_STRING) -1];
+			} // end for
+			
+			updateLCD(msg);
+			// unlock the door
+			unlock();
+		} else if (strncmp(EEPROMRESET, (char*)payload, sizeof(EEPROMRESET)) == 0) {
+			// updateLCD("EEPROM");
+                        // resetEEPROM();
+			// remapKeyp();
+			// modeResetLCD();
+		} else {
+			char msg[length + 1];
+			memset(msg, 0, sizeof(msg));
+			for(int i = 0; i < (sizeof(msg)-1); i++) {
+				msg[i] = (char)payload[i];
+			} // end for
+			
+			// send the whole payload to LCD
+			updateLCD(msg);
+			
+		}// end if else
+	} // end if
+	
 } // end void callback(char* topic, byte* payload,int length)
 
 PubSubClient client(server, MQTT_PORT, callbackMQTT);
@@ -105,30 +119,34 @@ void setup()
 	pinMode(MAG_REL, OUTPUT);
 	pinMode(KEYPAD, INPUT);
 	pinMode(LAST_MAN, INPUT);
+	pinMode(SPEAKER, OUTPUT);
 	
 	// Set default output's
 	digitalWrite(DOOR_BELL, LOW);
+	digitalWrite(SPEAKER, HIGH);
 	lockDoor();
 	
 	// Start I2C and display system detail
 	Wire.begin();
 	clearLCD();
-	updateLCD("Gatekeeper Version: VERSION_NUM");
+	updateLCD(VERSION_STRING);
 	
 	// Start RFID Serial
 	Serial.begin(9600);
-	
+        
+        // delay to make sure ethernet is awake
+	delay(100);
 	// Start MQTT and say we are alive
 	if (client.connect(CLIENT_ID)) {
 		client.publish(P_STATUS,"Gatekeeper Restart");
 		client.subscribe(S_UNLOCK);
-	}
+	} // end if
 	
 	// Setup Interrupt
 	// let everything else settle
 	delay(100);
 	attachInterrupt(1, doorButton, HIGH);
-  
+	
 } // end void setup()
 
 void loop()
@@ -160,6 +178,9 @@ void loop()
 	// Poll Door Bell
 	// has the button been press
 	pollDoorBell();
+
+	// are we still connected to MQTT
+	checkMQTT();
 	
 } // end void loop()
 
@@ -195,9 +216,12 @@ void pollRFID()
 			char cardBuf[20];
 			ultoa(cardNumber, cardBuf, 10);
 			client.publish(P_RFID, cardBuf);
+			digitalWrite(SPEAKER, LOW);
+			delay(50);
+			digitalWrite(SPEAKER, HIGH);
 		} // end if
-	
-	// theres a card but we cant read it
+		
+		// theres a card but we cant read it
 	} else if (rfidReturn[3] == 1 && rfidReturn[4] != 131 && (millis() - cardTimeOut) > CARD_TIMEOUT) {
 		cardTimeOut = millis();
 		client.publish(P_RFID, "Unknown Card Type");
@@ -214,7 +238,8 @@ void pollMagCon()
 	boolean state = digitalRead(MAG_CON);
 	
 	// check see if the magnetic contact has changed
-	if(magConState != state) {
+	// timeout should kill bounce
+	if(magConState != state && (millis() - magTimeOut) > MAG_CON_TIMEOUT) {
 		// yes it has so publish to MQTT
 		switch (state) {
 			case CLOSED:
@@ -229,6 +254,7 @@ void pollMagCon()
 		
 		// Update State
 		magConState = state;
+		magTimeOut = millis();
 		
 	} // end if
 	
@@ -262,7 +288,7 @@ void pollKeypad()
 		if(!strcmp(pin, BACKDOOR)){
 			// just unlock the door
 			unlock();	
-					
+			
 		} else {
 			//publish key pad output to MQTT
 			client.publish(P_KEYPAD, pin);
@@ -315,10 +341,28 @@ void pollDoorBell()
 		delay(DOOR_BELL_LENGTH);
 		digitalWrite(DOOR_BELL, LOW);
 	} // end if
-}
+} // end void pollDoorBell()
+
+/**************************************************** 
+ * check we are still connected to MQTT
+ * reconnect if needed
+ *  
+ ****************************************************/
+void checkMQTT()
+{
+  	if(!client.connected()){
+		if (client.connect(CLIENT_ID)) {
+			client.publish(P_STATUS,"Gatekeeper Restart");
+			client.subscribe(S_UNLOCK);
+		} // end if
+	} // end if
+} // end checkMQTT()
 
 /**************************************************** 
  * Interrupt method for door bell button
+ * time out stop button being pushhed to often
+ * arduino timers dont run inside interrupt's so 
+ * millis() will return same value and delay() wont work
  *  
  ****************************************************/
 void doorButton()
@@ -327,12 +371,12 @@ void doorButton()
 	    // reset time out
 	    doorTimeOut = millis();
 		doorButtonState = 1;
-	}
+	} // end if
 } // end void doorButton()
 
 
 /**************************************************** 
- * Main Door unlock routine
+ * update the LCD output
  *  
  ****************************************************/
 void updateLCD(char* msg)
@@ -346,7 +390,10 @@ void updateLCD(char* msg)
 	    lcdTimeOut = millis();
 		lcdState = DEFAULT;
 		clearLCD();
-		sendStr(LCD_DEFAULT);
+		setCursorLCD(0,0);
+		sendStr(LCD_DEFAULT_0);
+		setCursorLCD(0,1);
+		sendStr(LCD_DEFAULT_1);
 	} // end else if
 } // end void 
 
@@ -357,7 +404,7 @@ void updateLCD(char* msg)
 void unlock()
 {
 	boolean o = 0;
-
+	
 	// store current time
 	unsigned long timeOut = millis();
 	
@@ -380,8 +427,8 @@ void unlock()
 	// Publish to MQTT if we timed out or the door was opened
 	if(o == 1) {
 		// the door was opened
-		client.publish(P_DOOR_STATE, "Door Opened");
-		
+		client.publish(P_DOOR_STATE, "Door Opened by:");
+		magConState = OPEN;
 	} else {
 		// the door timed out
 		client.publish(P_DOOR_STATE, "Door Time Out");
@@ -396,9 +443,9 @@ void unlock()
  ****************************************************/
 void lockDoor()
 {
-  digitalWrite(BLUE_LED, LOW);
-  digitalWrite(RED_LED, HIGH);
-  digitalWrite(MAG_REL, LOW);
+	digitalWrite(BLUE_LED, LOW);
+	digitalWrite(RED_LED, HIGH);
+	digitalWrite(MAG_REL, LOW);
 } // end void lockDoor()
 
 /**************************************************** 
@@ -407,9 +454,9 @@ void lockDoor()
  ****************************************************/
 void unlockDoor()
 {
-  digitalWrite(RED_LED, LOW);
-  digitalWrite(BLUE_LED, HIGH);
-  digitalWrite(MAG_REL, HIGH);
+	digitalWrite(RED_LED, LOW);
+	digitalWrite(BLUE_LED, HIGH);
+	digitalWrite(MAG_REL, HIGH);
 } // end void unlockDoor()
 
 

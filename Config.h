@@ -64,6 +64,8 @@ boolean doorButtonState = 0;
 #define CLOSED HIGH
 #define OPEN LOW
 boolean magConState = CLOSED;
+#define MAG_CON_TIMEOUT 1000
+unsigned long magTimeOut = 0;
 
 // Magnetic Door Release
 #define MAG_REL 4
@@ -89,10 +91,12 @@ unsigned long cardTimeOut = 0;
 
 // Keypad INT
 #define KEYPAD A3
+#define EEPROMRESET "EEReset"
 
 // LCD
 // timeout in mills for how long a msg is displayed
-#define LCD_DEFAULT "Welcome to Nottingham Hackspace"
+#define LCD_DEFAULT_0 "     Welcome to     "
+#define LCD_DEFAULT_1 "Nottingham Hackspace"
 #define LCD_TIMEOUT 5000
 unsigned long lcdTimeOut = 0;
 byte lcdState = 0;
