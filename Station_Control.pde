@@ -26,8 +26,8 @@
  These are the subroutines for using the ATTiny2313 I2C Keypad and LCD controller.
  
  Thanks to:
- John Crouchley 
- johng at crouchley.me.uk
+	John Crouchley 
+	johng at crouchley.me.uk
  
  */
 

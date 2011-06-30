@@ -25,16 +25,16 @@
 
 /*  
  History
-    000 - Started 28/05/2011
- 	001 - Initial release 
+	000 - Started 28/05/2011
+	001 - Initial release 
  
  Known issues:
-    DEBUG_PRTINT and USB Serial Will NOT WORK if the RFID module is plugged in as this uses the hardware serial
+	DEBUG_PRTINT and USB Serial Will NOT WORK if the RFID module is plugged in as this uses the hardware serial
 	All code is based on official Ethernet library not the nanode's ENC28J60, we need to port the MQTT PubSubClient
 	
  
  Future changes:
- 	Find a better way than 3 sec delay to get keys in buffer
+	Find a better way than 3 sec delay to get keys in buffer
 		Make keypad interactive with LCD and use ent/clr to build pin numbers? 
 		Requires rewrite of 001 lcd default handling
 	Better Handling of the Backdoor
@@ -47,8 +47,8 @@
 	
 	
  Authors:
- 'RepRap' Matt      dps.lwk at gmail.com
-  John Crouchley    johng at crouchley.me.uk
+	'RepRap' Matt      dps.lwk at gmail.com
+	John Crouchley    johng at crouchley.me.uk
  
  */
 
@@ -276,9 +276,14 @@ void pollKeypad()
 		char pin[n+1];
 		//zero the array to make sure we get the NULL terminator
 		memset(pin, 0, sizeof(pin));
-		
+		char c;
 		for(byte i = 0; i < n; i++){
-			pin[i] =readKeyp();
+			// filter ent and clr keys as not used rite now
+			c = readKeyp();
+			if ( c != 0x2A || c != 0x23 )
+				pin[i] = c;
+			
+			//pin[i] =readKeyp();
 		} // end for
 		
 		//add null terminator <-- this didn't work when tested
