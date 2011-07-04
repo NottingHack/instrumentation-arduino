@@ -65,12 +65,22 @@ int inByte = 0;
 int lastfont = 0;
 
 /* pin numbers for connection LT1441M */
-#define GSI 8
-#define GAEO 9
+/*
+#define GSI 8 
+#define GAEO 9 
 #define LATCH 10
 #define CLOCK 11
 #define RAEO 12
-#define RSI 13
+#define RSI 13 
+*/
+/* pin map for mega with netowrk sheild */
+#define GSI 34
+#define GAEO 32
+#define LATCH 30
+#define CLOCK 28
+#define RAEO 26
+#define RSI 24
+
 
 /* 
  * setup Matrix instance
@@ -85,17 +95,17 @@ void setup()
 
 
   Serial.begin(115200);      // only enable if atmega1280 as pin confilct on 328
+  Serial.println("LT1441M_Class_Test");
   
-  
-  pinMode(8, INPUT);
-  pinMode(9, INPUT);
-  pinMode(13, OUTPUT);
+  // mega using 22 for GND
+	pinMode(22, OUTPUT);
+	digitalWrite(22, LOW);
 
   myMatrix.begin();
-  myMatrix.selectFont(System5x8);  
-  myMatrix.println("Northackton");
+  myMatrix.selectFont(LWK16v3);  
+  myMatrix.println(" Welcome to Nottinghack ");
 //  myMatrix.selectFont(LWK16v3); 
-  myMatrix.println("Maker Faire 2011");
+ // myMatrix.println("Nottinghack");
 //  myMatrix.selectFont(System5x8);
   myMatrix.update();
   myMatrix.enable();
@@ -184,4 +194,3 @@ void loop()
         
 
 }
-

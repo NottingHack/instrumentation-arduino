@@ -161,7 +161,7 @@ void LT1441M::setPage(unsigned char page){			// set frameBuffer page for write
 } //end void LT1441M::setPage(unsigned char page)
 
 void LT1441M::setCol(unsigned char x){				// set frameBuffer col for write
-	if (x >= xMost){							// check to make sure not off right edge of screen and
+	if (x > xMost){							// check to make sure not off right edge of screen and
 		x=0;									// reset start of screen
 	}
 	coord.x = x;								// set coord to match
@@ -259,7 +259,7 @@ void LT1441M::update(){											// update the display with current frameBuffer
 
 		int j = i + offset[0];
 		if (j > xMost) {
-			j = j - xMost;
+			j = j - dxRAM;
 		}
 		
 		shiftOutL(_rsi_pin, _clock_pin, LSBFIRST, frameBuffer[0][j]); 
@@ -291,15 +291,15 @@ void LT1441M::shiftOutL(uint8_t dataPin, uint8_t clockPin, uint8_t bitOrder, uin
 	for (i = 0; i < 8; i++)  {
 		if (bitOrder == LSBFIRST) {
 			digitalWrite(dataPin, !!(val & (1 << i)));
-			//digitalWrite(_gsi_pin, !!(val & (1 << i)));  /// ***LWK***
+			digitalWrite(_gsi_pin, !!(val & (1 << i)));  /// ***LWK***
 		} else {
 			digitalWrite(dataPin, !!(val & (1 << (7 - i))));
 		}
 		
-		delayMicroseconds(200);
-		//digitalWrite(clockPin, HIGH);
-		delayMicroseconds(200);
-		//digitalWrite(clockPin, LOW);		
+		//delayMicroseconds(200);
+		digitalWrite(clockPin, HIGH);
+		//delayMicroseconds(200);
+		digitalWrite(clockPin, LOW);		
 	}
 } //end void shiftOut(uint8_t dataPin, uint8_t clockPin, uint8_t bitOrder, uint8_t val)
 

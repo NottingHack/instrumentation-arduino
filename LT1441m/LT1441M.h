@@ -120,11 +120,11 @@ private:
 	*/
 
 	/* geometry of the screen and memory */
-		dxScreen	= 64,				// number of columns on screen ***LWK*** 128 for finaly config of 1x8 panles
+		dxScreen	= 128,				// number of columns on screen ***LWK*** 128 for finaly config of 1x8 panles
 		dyScreen	= 16,				// number of rows on screen
-		dxRAM		= 100,				// number of cols stored in frameBuffer (including off-screen area) ***LWK*** 840 for 140 chars at 8x6
+		dxRAM		= 350,				// number of cols stored in frameBuffer (including off-screen area) ***LWK*** 840 for 140 chars at 8x6
 		dyRAM		= 16,				// number of rows stored in frameBuffer (including off-screen area)
-		dPage		= dyRAM / 8, // = 2				// number of pages in frameBuffer
+		dPage		= dyRAM / 8, // = 2				// number of pages in frameBuffer (use row height) ***LWK***
 
 	/* 'last' values are largest values that are visible on the screen */
 		xLast		= dxScreen-1,
@@ -144,9 +144,8 @@ private:
 
 	void write_d(unsigned char ins_c);			// write date to frameBuffer
 	void shiftOutL(uint8_t dataPin, uint8_t clockPin, uint8_t bitOrder, uint8_t val);		// Custom Shift Out routine
+	
 public:
-
-
 	
 // Public Methods //////////////////////////////////////////////////////////////
 // Functions available in Wiring sketches, this library, and other libraries
