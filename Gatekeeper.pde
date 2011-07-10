@@ -280,7 +280,7 @@ void pollKeypad()
 		for(byte i = 0; i < n; i++){
 			// filter ent and clr keys as not used rite now
 			c = readKeyp();
-			if ( c != 0x2A || c != 0x23 )
+			if ( c != 0x2A && c != 0x23 )
 				pin[i] = c;
 			
 			//pin[i] =readKeyp();
