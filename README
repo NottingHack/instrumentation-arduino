@@ -7,3 +7,10 @@ Frame buffer example sketch
 LT1441M
 Arduino Class library
 
+MatrixMQTT
+
+ver 004 reports temps via nh/temp
+this requires the addition of the Dallas Temperature Control  
+and the One wire libraries 
+http://milesburton.com/Dallas_Temperature_Control_Library
+http://www.pjrc.com/teensy/td_libs_OneWire.html
