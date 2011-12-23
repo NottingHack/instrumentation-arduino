@@ -276,7 +276,7 @@ void LT1441M::update(){											// update the display with current frameBuffer
 void LT1441M::updateScroll(){
 	
 	for (int i = 0; i < dPage; i++) {
-		if(offset[i] == xMost){				// ***LWK*** changed form <
+		if(offset[i] > xMost){
 			offset[i] -= xMost;
 		} else {
 			offset[i]++;
@@ -291,15 +291,15 @@ void LT1441M::shiftOutL(uint8_t dataPin, uint8_t clockPin, uint8_t bitOrder, uin
 	for (i = 0; i < 8; i++)  {
 		if (bitOrder == LSBFIRST) {
 			digitalWrite(dataPin, !!(val & (1 << i)));
-			digitalWrite(_gsi_pin, !!(val & (1 << i)));  // ***LWK***
+			//digitalWrite(_gsi_pin, !!(val & (1 << i)));  /// ***LWK***
 		} else {
 			digitalWrite(dataPin, !!(val & (1 << (7 - i))));
 		}
 		
-		//delayMicroseconds(200);
-		digitalWrite(clockPin, HIGH);
-		//delayMicroseconds(200);
-		digitalWrite(clockPin, LOW);		
+		delayMicroseconds(200);
+		//digitalWrite(clockPin, HIGH);
+		delayMicroseconds(200);
+		//digitalWrite(clockPin, LOW);		
 	}
 } //end void shiftOut(uint8_t dataPin, uint8_t clockPin, uint8_t bitOrder, uint8_t val)
 
