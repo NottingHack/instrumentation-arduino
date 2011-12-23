@@ -132,10 +132,12 @@ byte server[] = { 10, 0, 0, 2 };
 #define P_RFID				"nh/gk/RFID"
 #define P_LAST_MAN_STATE	"nh/gk/LastManState"
 
-
 // Status Topic, use to say we are alive or DEAD (will)
-#define P_STATUS "nh/gk/Status"
-
+#define S_STATUS "nh/status"
+#define P_STATUS "nh/status"
+#define STATUS_STRING "STATUS"
+#define RUNNING "Running: Gatekeeper"
+#define RESTART "Restart: Gatekeeper"
 
 
 

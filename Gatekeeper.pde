@@ -71,7 +71,7 @@ void callbackMQTT(char* topic, byte* payload, int length) {
 	// handle message arrived
 	if (!strcmp(S_UNLOCK, topic)) {
 		// check for unlock, rest of payload is msg for lcd
-		if (strcmp(UNLOCK_STRING, (char*)payload) < 0) {
+		if (strncmp(UNLOCK_STRING, (char*)payload, strlen(UNLOCK_STRING)) == 0) {
 			// strip UNLOCK_STRING, send rest to LCD
 			char msg[length - sizeof(UNLOCK_STRING) + 2];
 			memset(msg, 0, sizeof(msg));
@@ -82,7 +82,7 @@ void callbackMQTT(char* topic, byte* payload, int length) {
 			updateLCD(msg);
 			// unlock the door
 			unlock();
-		} else if (strncmp(EEPROMRESET, (char*)payload, sizeof(EEPROMRESET)) == 0) {
+		} else if (strncmp(EEPROMRESET, (char*)payload, strlen(EEPROMRESET)) == 0) {
 			// updateLCD("EEPROM");
                         // resetEEPROM();
 			// remapKeyp();
@@ -98,7 +98,12 @@ void callbackMQTT(char* topic, byte* payload, int length) {
 			updateLCD(msg);
 			
 		}// end if else
-	} // end if
+	} else  if (!strcmp(S_STATUS, topic)) {
+	  // check for Status request,
+		if (strncmp(STATUS_STRING, (char*)payload, strlen(STATUS_STRING)) == 0) {
+			client.publish(P_STATUS, RUNNING);
+		} // end if
+	} // end if else
 	
 } // end void callback(char* topic, byte* payload,int length)
 
@@ -138,8 +143,9 @@ void setup()
 	delay(100);
 	// Start MQTT and say we are alive
 	if (client.connect(CLIENT_ID)) {
-		client.publish(P_STATUS,"Gatekeeper Restart");
+		client.publish(P_STATUS,RESTART);
 		client.subscribe(S_UNLOCK);
+		client.subscribe(S_STATUS);
 	} // end if
 	
 	// Setup Interrupt
@@ -357,8 +363,9 @@ void checkMQTT()
 {
   	if(!client.connected()){
 		if (client.connect(CLIENT_ID)) {
-			client.publish(P_STATUS,"Gatekeeper Restart");
+			client.publish(P_STATUS, RESTART);
 			client.subscribe(S_UNLOCK);
+			client.subscribe(S_STATUS);
 		} // end if
 	} // end if
 } // end checkMQTT()
