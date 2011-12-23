@@ -14,25 +14,14 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. 
  *
- * Origanl designed for nottinghack's donated LED matrix boards
+ * Original designed for nottinghack's donated LED matrix boards
  * http://wiki.nottinghack.com/wiki/LED_Matrix
  *
  *
  ****************************************************/
-/*
- History
- 	001 - Initial release  
- Known issues:
-	None
- Future changes:
- 	None
-
- ToDo:
- 	Lots
- */
 
 /*
- * The LT1441M has a 7pin connector for the dasiy chained date lines 
+ * The LT1441M has a 7pin connector for the daisy chained date lines 
  * 
  * GSI       Serial data yellow-green
  * /GAEO     Output enable for yellow-green
@@ -62,9 +51,35 @@
 #include "WProgram.h"
 #include <avr/pgmspace.h>
 
+// include default fonts
+// #include "Var8.h"
+#include "Tekton.h"
+#include "SystemFont5x8.h"
 
-// include description files for other libraries used (if any)
-#include "Print.h"
+
+#define 	DMSG	141				// number of char's for msg buffer length including '\0' max 256
+
+#define DEFAULT_FONT	System5x8
+#define	SCROLL_RIGHT	0
+#define SCROLL_LEFT		1
+
+
+
+
+// typedef for msg buffers
+typedef struct {
+	char buffer[DMSG];			// actual message buffer
+	int position;				// current char pointer
+	byte offset;				// px offset in current char
+	int length;					// current string length but px of font
+	byte flags;					// scroll and toggle flags (scroll, scrollDir, show, toggle, 
+	int sDelay;					// scroll delay
+	int tDelay;					// toggle delay
+	unsigned long sTimeout;		// scroll delay timeout
+	unsigned long tTimeout;		// toggle delay timeout	
+	byte	fontColor;
+	const uint8_t* font;
+} messageBuffer	;
 
 // typedef to hold cursor location for class
 typedef struct {
@@ -73,28 +88,39 @@ typedef struct {
 	unsigned char page;
 } lcdCoord;
 
-typedef uint8_t (*FontCallback)(const uint8_t*);
+typedef byte (*FontCallback)(const byte*);
 
-uint8_t ReadPgmData(const uint8_t* ptr);	//Standard Read Callback
+byte ReadPgmData(const byte* ptr);	//Standard Read Callback
 
-class LT1441M : public Print {
+class LT1441M {
 
 private:
 // Private Members /////////////////////////////////////////////////////////////
 // Member variables only available to other functions in this library
 
 	FontCallback	    FontRead;
-	uint8_t				FontColor;
+	byte				FontColor;
 	const uint8_t*		Font;
 
 
 	// pin variables
-	unsigned char _gsi_pin;						    // GSI       Serial data yellow-green
-	unsigned char _gaeo_pin;						// /GAEO     Output enable for yellow-green
-	unsigned char _latch_pin;						// LATCH     Latch contents of shift register 
-	unsigned char _clock_pin;						// CLOCK     Clock Signal for data (read on L->H)
-	unsigned char _raeo_pin;						// /RAEO     Output enable for red
-	unsigned char _rsi_pin;							// RSI       Serial data red
+	byte _gsi_pin;						    // GSI       Serial data yellow-green
+	byte _gaeo_pin;						// /GAEO     Output enable for yellow-green
+	byte _latch_pin;						// LATCH     Latch contents of shift register 
+	byte _clock_pin;						// CLOCK     Clock Signal for data (read on L->H)
+	byte _raeo_pin;						// /RAEO     Output enable for red
+	byte _rsi_pin;							// RSI       Serial data red
+	
+	// bit mask fort msg[].flags
+	enum{
+		SHOW_LINE		= 1,					
+		SCROLL_LINE		= 2,
+		SCROLL_NEG		= 4,
+		SCROLL_ON		= 8,					// scroll message onto screen but stop if not also scroll_line
+		PAGE_1			= 16,					// show on page 0 or 1
+		TOGGLE_LINE		= 32,					// toggle after timeout?
+		TOGGLE_MASK		= 192,					// bits 6,7 used to hold next line number to switch to 0,1,2,3
+	};
 	
 	enum{										// Enum to hold static values
 	// Colors
@@ -120,12 +146,12 @@ private:
 	*/
 
 	/* geometry of the screen and memory */
-		dxScreen	= 128,				// number of columns on screen ***LWK*** 128 for finaly config of 1x8 panles
+		dxScreen	= 128,				// number of columns on screen ***LWK*** 128 for finally config of 1x8 panels
 		dyScreen	= 16,				// number of rows on screen
-		dxRAM		= 350,				// number of cols stored in frameBuffer (including off-screen area) ***LWK*** 840 for 140 chars at 8x6
+		dxRAM		= 128,				// number of cols stored in frameBuffer (including off-screen area)
 		dyRAM		= 16,				// number of rows stored in frameBuffer (including off-screen area)
-		dPage		= dyRAM / 8, // = 2				// number of pages in frameBuffer (use row height) ***LWK***
-
+		dPage		= dyRAM / 8, // = 2				// number of pages in frameBuffer (use row height) max 2(.flags & PAGE_1) HARDMax 256 for (byte
+		
 	/* 'last' values are largest values that are visible on the screen */
 		xLast		= dxScreen-1,
 		yLast		= dyScreen-1,
@@ -133,17 +159,34 @@ private:
 		xMost		= dxRAM-1,
 		yMost		= dyRAM-1,
 		pageLast	= dPage-1,
+		msgNum		= 3,				// total number of line buffers MAX 4(TOGGLE_MASK) HARDMax 256 (byte)
+		scrollBuffer = dxScreen-1,		// number of blank col's between end of scroll and start again
+		
+		sDelayDefault = 50,
+		tDelayDefault = 1000,
 	};	// end enum
 
-	unsigned char frameBuffer[dPage][dxRAM];
-	//unsigned int frameBuffer[dxRAM];
-	int offset[dPage];
+	byte frameBuffer[dPage][dxRAM];
+	int frameOffset[dPage];
+	// int frameX[dPage];			//not sure if i may still need to track X
+	byte _invert;					// invert frameBuffer on output 0 = normal 1 = invert
+	byte _currentLines;				
+	
+	messageBuffer msg[3];
 
 // Private Methods /////////////////////////////////////////////////////////////
 // Functions only available to other functions in this library
 
-	void write_d(unsigned char ins_c);			// write date to frameBuffer
-	void shiftOutL(uint8_t dataPin, uint8_t clockPin, uint8_t bitOrder, uint8_t val);		// Custom Shift Out routine
+	void write_d(byte ins_c, byte page);			// write date to frameBuffer
+	void shiftOutDual(byte val);		// Custom Shift Out routine
+	void output();						// output the full frameBuffer using frameOffset's
+	void updateToggle();				// update frameBuffer if a line toggle is needed
+	void updateScroll();				// update frameBuffer based on current scroll flags per msg[line]
+	void calcLen(byte line);			// calculate the length in px of msg[line].buffer, stores in msg[line].length so no return
+	void fillBuffer(byte line);			// used to fill new buffer after setLine()
+	void putOne(byte line);				// used to put one more col of char onto frame buffer
+	void putFull(byte line);			// used to put full char onto frame buffer
+	void putChar(byte line);				// Put Char to display handels variable fonts
 	
 public:
 	
@@ -151,13 +194,12 @@ public:
 // Functions available in Wiring sketches, this library, and other libraries
 
 	/**
-	*  Construct to creat LT1441M class 
+	*  Construct to createCurrently LT1441M class 
 	*
 	*  Pass Pin Assignments via....
 	*  LT144M myMatrix(GIS_pin, GAEO_pin, LATCH_pin, CLOCK_pin, RAEO_pin, RSI_pin)
 	*/
-	LT1441M(unsigned char gsi_pin, unsigned char gaeo_pin, 
-		unsigned char latch_pin, unsigned char clock_pin, unsigned char raeo_pin, unsigned char rsi_pin); 
+	LT1441M(byte gsi_pin, byte gaeo_pin, byte latch_pin, byte clock_pin, byte raeo_pin, byte rsi_pin); 
 
 	/**
 	*  Setup Arduino and LT1441M for use
@@ -165,41 +207,51 @@ public:
 	*/
 	void begin(void);
 
-	// General Functions That Curently Work
+	// General Functions That Currently Work
 	void clrScreen(void);									// clears the screen and returns cursor to (0,0)
-	void clrPage(unsigned char page);						// Clear a single page and return cursor to (0,page)
-	virtual void write(unsigned char);						// write to display
-	using Print::write;										// pull in write(str) and write(buf, size) from Print
-	void setCursor(unsigned char x, unsigned char y);	    // set frameBuffer postion for write
-	void setPage(unsigned char page);						// set frameBuffer page for write
-	void setCol(unsigned char x);							// set frameBuffer col for write
-	void setRow(unsigned char y);							// set freameBuffer row for write
+	void clrPage(byte page);								// Clear a single page and return cursor to (0,page)
+	void clrLine(byte line);								// clear msg[line] buffer 
+	
+	void setLine(byte line, char* txt, byte show=0, byte scroll=0, byte scrollOn=0, byte dir=SCROLL_RIGHT, byte page=10/*, const uint8_t* font=DEFAULT_FONT, byte color=BLACK*/);	// set a line of text
+	void showLine(byte line);								// 
+	void hideLine(byte line);								// 
+	void scrollStart(byte line);							// 
+	void scrollStop(byte line);								// 
+	void scrollDelay(byte line, int delay=sDelayDefault);	// 
+	void scrollDir(byte line, byte dir);					// use SCROLL_LEFT and SCROLL_RIGHT for dir
+	void toggleStart(byte line1, byte line2, int delay=tDelayDefault);	// setup toggle between two line starting with line1, setLine() for both first 
+	void toggleStop(byte line1, byte line2);										// stops toggle and leaves line1 showing 
+
+	
+/*	
+	void write(byte);										// write to display
+	
+	// no longer needed??
+
+	void setCursor(byte x, byte y);							// set frameBuffer postion for write
+	void setPage(byte page);								// set frameBuffer page for write
+	void setCol(byte x);									// set frameBuffer col for write
+	void setRow(byte y);									// set frameBuffer row for write
+*/	
 	void invert(void);										// inverts the display
 	void normal(void);										// restore normal operation after invert
-	int putChar(unsigned char c);							// Put Char to display handels varible fonts
-	void selectFont(const uint8_t* font, uint8_t color=BLACK, FontCallback callback=ReadPgmData); // defualt arguments added, callback now last arg
+	
 
-	void update();											// update the display with current frameBuffer
-	void enable();											// turn on display
-	void disable();											// turn off display
+	void selectFont(byte line, const uint8_t* font=DEFAULT_FONT, byte color=BLACK); // set font per msg[line]
+
+	void loop(void);											// update the display
+	void enable(void);											// turn on display
+	void disable(void);											// turn off display
 	
 	// Most of these to be done
 	void rest(void);										// reset display 
 	// shift the display so the specified row is at the top of the screen 
-	void rowOffset(unsigned char b);
+	void rowOffset(byte b);
 	/* set the start line for the display; the code in this project uses
 	this property to adjust so that the first row displayed is row 0;
 	so, you probably want to use SetRowOffset for a scrolling effect */
-	void startLine(unsigned char b);
-	void FindEdges(void);
-	void DrawEdges(void);
-	void DrawFullRect(void);
-	void ScrollDisplay(void);								// Scroll display 
-	void DrawCircles(void);
-	void DrawColorBars(void);
-	void FillScreenPixels(void);
-	void updateScroll(void);
-	
+
+
 	
 // Public Const Members //////////////////////////////////////////////////////////////
 // Member variables available in Wiring sketches, this library, and other libraries
