@@ -93,6 +93,9 @@ byte server[] = { 10, 0, 0, 2 };
 
 // Subscribe to topics
 #define S_RX		"nh/mb/tx"
+#define S_TWITTER	"nh/twitter/rx/hs"
+#define S_MAIL      "nh/mail/rx/#"
+#define S_MAIL_MASK   "nh/mail/rx/"
 
 // Publish Topics
 

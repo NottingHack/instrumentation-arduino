@@ -30,15 +30,39 @@
 	002 - changes to work with libary rewirte
 	003 - changes to genric nh/status usage and added checkMQTT() 
 	004 - adding temp dallas
+	005 - adding twitter 
+			LT1441M libray updated to support 6 message buffers
+            TODO PubSubClient needs update to support more than 128 packet
+
+			lines defined as
+			0 irc nick
+			1 irc msg
+			2 twitter screen_name
+			3 twitter text
+			4 google from (TODO 006)
+			5 google subject (TODO 006)
+			
+			twitter can get it direct from 
+			S_TWITTER nh/twitter/rx/hs/<screen_name>
+			
+			should irc still clear display?
+			
+			setup running toggle between lines
+			1>3>5>
+			2>4>6>
+			libary tweeked to sync changes
+            
+			
  
  Known issues:
 	All code is based on official Ethernet library not the nanode's ENC28J60, we need to port the MQTT PubSubClient
-	
+	PubSubClient by default only supports 128 bytes yet LT1441M buffer is 140 char's
  
  Future changes:
- 
+
  
  ToDo:
+    Change irc message display acknowledge 
 	Add Last Will and Testament
 	
 	
@@ -48,13 +72,14 @@
  
  */
 
-#define VERSION_NUM 004
-#define VERSION_STRING "MatrixMQTT ver: 004"
+#define VERSION_NUM 005
+#define VERSION_STRING "MatrixMQTT ver: 005"
 
 // Uncomment for debug prints
 #define DEBUG_PRINT
 
 // Uncomment for LT1441M debug prints
+// needs to be done in LT1441M.h
 //#define DEBUG_PRINT1
 
 
@@ -69,12 +94,13 @@
 // function prototypes
 void callbackMQTT(char*, byte*, int);
 void printAddress(DeviceAddress deviceAddress);
+void setupToggle();
 
 // compile on holly need this befor callbackMQTT
 LT1441M myMatrix(GSI, GAEO, LATCH, CLOCK, RAEO, RSI);
 // compile on holly needs this after callbackMQTT
 PubSubClient client(server, MQTT_PORT, callbackMQTT);
-char pmsg[141];
+char pmsg[DMSG];
 
 // Setup a oneWire instance to communicate with any OneWire devices (not just Maxim/Dallas temperature ICs)
 OneWire oneWire(ONE_WIRE_BUS);
@@ -87,76 +113,162 @@ int numberOfDevices;
 // array to store found address
 DeviceAddress tempAddress[10]; 
 
+/**************************************************** 
+ * icr_process
+ * given a payload set diaply lines 0 & 1
+ * 
+ ****************************************************/
+void irc_process(byte* payload, int length) {
+    if (strncmp(DISPLAY_STRING, (char*)payload, strlen(DISPLAY_STRING)) == 0) {
+        // strip DISPLAY_STRING, send rest to Matrix
+        //char msg[length - sizeof(DISPLAY_STRING) + 2];
+        memset(pmsg, 0, DMSG);
+        for(int i = 0; i < (length - strlen(DISPLAY_STRING)); i++) {
+            pmsg[i] = (char)payload[i + sizeof(DISPLAY_STRING) -1];
+        } // end for
+        
+        myMatrix.selectFont(1, DEFAULT_FONT);
+        myMatrix.setLine(1, pmsg, 0, 1, 1);
+        myMatrix.showLine(1);
+        
+        
+        // return msg that has been displayed 
+        client.publish(P_TX, pmsg);
+#ifdef DEBUG_PRINT
+        Serial.print("Displayed Message: ");
+        Serial.print(pmsg);
+        Serial.print(" sizeof:");
+        Serial.println(strlen(pmsg), DEC);
+#endif
+        
+    } else if (strncmp(NICK_STRING, (char*)payload, strlen(NICK_STRING)) == 0) {
+        // strip DISPLAY_STRING, send rest to Matrix
+        //char msg[length - sizeof(NICK_STRING) + 2];
+        memset(pmsg, 0, DMSG);
+        for(int i = 0; i < (length - strlen(NICK_STRING)); i++) {
+            pmsg[i] = (char)payload[i + sizeof(NICK_STRING) -1];
+        } // end for
+        
+        myMatrix.selectFont(0,DEFAULT_FONT);
+        myMatrix.setLine(0, pmsg, 0, 0, 1);
+        myMatrix.showLine(0);
+        
+        // return msg that has been displayed 
+        client.publish(P_TX, pmsg);
+#ifdef DEBUG_PRINT
+        Serial.print("Displayed Nick: ");
+        Serial.print(pmsg);
+        Serial.print(" sizeof nick:");
+        Serial.println(strlen(pmsg), DEC);
+#endif
+        
+    } else if (strcmp(CLRSCREEN_STRING, (char*)payload) <= 0) {
+        if (length > strlen(CLRSCREEN_STRING)) {
+            // stript out which line to clear
+            //myMatrix.clrLine(line);
+        } else {
+            myMatrix.hideLine(0);
+            myMatrix.hideLine(1);
+            // return mag to say screen cleard
+            client.publish(P_TX, CLRSCREEN_DONE_STRING);
+#ifdef DEBUG_PRINT
+            Serial.println("Screen Cleared");
+#endif
+        }
+        // } else if (strncmp(XXX, (char*)payload, sizeof(XXX)) == 0) {
+    } else {
+        // send the whole payload to 
+        
+    }// end if else
+
+} // end void irc_process(byte* playload, int length)
+
+/**************************************************** 
+ * twitter_process
+ * given a payload set diaply lines 2 & 3
+ * strip <screen_name> from payload
+ ****************************************************/
+void twitter_process(byte* payload, int length) {
+    // twitter stuff
+    // strip <screen_name> from payload
+    // find first :
+    // strip <screen_name>, add@ and setLine(2...
+    int slen;
+    char delim[] = ":";
+    slen = strcspn((char*)payload, delim);
+    
+    memset(pmsg, 0, DMSG);
+    
+    pmsg[0] = '@';
+    /*
+    for(int i = 0; i < (slen); i++) {
+        pmsg[1+i] = (char)payload[i];
+    } // end for
+    */
+    memcpy(pmsg+1, payload, slen);
+    
+    // screen_name to line 2
+    myMatrix.selectFont(2, DEFAULT_FONT);
+    myMatrix.setLine(2, pmsg, 0, 0, 1);
+    myMatrix.showLine(2);
+    
+    // payload into pmsg
+    memset(pmsg, 0, DMSG);
+    
+    if ((length - slen + 1) > DMSG-1) {
+        length = DMSG-1;
+    }
+    
+    memcpy(pmsg, payload + slen + 1, length - slen - 1);
+    // rest to line 3
+	myMatrix.selectFont(3, DEFAULT_FONT);
+    myMatrix.setLine(3, pmsg, 0, 1, 1);
+    myMatrix.showLine(3);
+    
+} // end void twitter_process(byte* payload, int length)
+
+/**************************************************** 
+ * mail_process
+ * given a payload set diaply lines 4 & 5
+ * strip <screen_name> from topic
+ ****************************************************/
+void mail_process(char* topic, byte* payload, int length) {
+
+    memset(pmsg, 0, DMSG);
+    
+    // strip sender from topic & copy all in one
+    memcpy(pmsg, topic + strlen(S_MAIL_MASK), strlen(topic) - strlen(S_MAIL_MASK));
+    
+    // sender to line 4
+    myMatrix.selectFont(4, DEFAULT_FONT);
+    myMatrix.setLine(4, pmsg, 0, 0, 1);
+    myMatrix.showLine(4);
+    
+    // payload into pmsg
+    memset(pmsg, 0, DMSG);
+    
+    if (length > DMSG-1)
+        length = DMSG-1;
+    
+    memcpy(pmsg, payload, length);
+    // sender to line 5
+	myMatrix.selectFont(5, DEFAULT_FONT);
+    myMatrix.setLine(5, pmsg, 0, 1, 1);
+    myMatrix.showLine(5);
+    
+} // end void mail_process(char* topic, byte* payload, int length)
+
+/**************************************************** 
+ * callbackMQTT
+ * called when we get a new MQTT
+ * work out which topic was ublished to and handel as needed
+ ****************************************************/
 void callbackMQTT(char* topic, byte* payload, int length) {
 
   // handle message arrived
 	if (!strcmp(S_RX, topic)) {
-	// check for ***LWK***,
-	if (strncmp(DISPLAY_STRING, (char*)payload, strlen(DISPLAY_STRING)) == 0) {
-			// strip DISPLAY_STRING, send rest to Matrix
-			//char msg[length - sizeof(DISPLAY_STRING) + 2];
-			memset(pmsg, 0, 141);
-			for(int i = 0; i < (length - strlen(DISPLAY_STRING)); i++) {
-				pmsg[i] = (char)payload[i + sizeof(DISPLAY_STRING) -1];
-			} // end for
-	
-			//myMatrix.clrScreen();
-			myMatrix.selectFont(1,DEFAULT_FONT);
-			myMatrix.setLine(1, pmsg, 1, 1, 0);
-			
-			
-			// return msg that has been displayed 
-			client.publish(P_TX, pmsg);
-#ifdef DEBUG_PRINT
-			Serial.print("Displayed Message: ");
-			Serial.print(pmsg);
-			Serial.print(" sizeof:");
-			Serial.println(strlen(pmsg), DEC);
-#endif
-			
-		} else if (strncmp(NICK_STRING, (char*)payload, strlen(NICK_STRING)) == 0) {
-			// strip DISPLAY_STRING, send rest to Matrix
-			//char msg[length - sizeof(NICK_STRING) + 2];
-			memset(pmsg, 0, 141);
-			for(int i = 0; i < (length - strlen(NICK_STRING)); i++) {
-				pmsg[i] = (char)payload[i + sizeof(NICK_STRING) -1];
-			} // end for
-			
-			//myMatrix.clrScreen();
-			myMatrix.selectFont(0,DEFAULT_FONT);
-			myMatrix.setLine(0, pmsg, 1, 0, 1);
-			
-			
-			// return msg that has been displayed 
-			client.publish(P_TX, pmsg);
-#ifdef DEBUG_PRINT
-			Serial.print("Displayed Nick: ");
-			Serial.print(pmsg);
-			Serial.print(" sizeof nick:");
-			Serial.println(strlen(pmsg), DEC);
-#endif
-			
-		} else if (strcmp(CLRSCREEN_STRING, (char*)payload) <= 0) {
-			if (length > strlen(CLRSCREEN_STRING)) {
-				// stript out which line to clear
-				//myMatrix.clrLine(line);
-			} else {
-				myMatrix.clrLine(0);
-				myMatrix.clrLine(1);
-				myMatrix.clrLine(2);
-				myMatrix.clrScreen();
-				
-				// return mag to say screen cleard
-				client.publish(P_TX, CLRSCREEN_DONE_STRING);
-#ifdef DEBUG_PRINT
-				Serial.println("Screen Cleared");
-#endif
-			}
-	// } else if (strncmp(XXX, (char*)payload, sizeof(XXX)) == 0) {
-		} else {
-		  // send the whole payload to 
-		  
-		}// end if else
+        // call irc process
+        irc_process(payload, length);
 	} else  if (!strcmp(S_STATUS, topic)) {
 		// check for Status request,
 		if (strncmp(STATUS_STRING, (char*)payload, strlen(STATUS_STRING)) == 0) {
@@ -165,6 +277,18 @@ void callbackMQTT(char* topic, byte* payload, int length) {
 #endif
 			client.publish(P_STATUS, RUNNING);
 		} // end if
+    } else if (!strcmp(S_TWITTER, topic) ) {
+        // handel twitter status update
+#ifdef DEBUG_PRINT
+        Serial.println("Twitter Status");
+#endif
+        twitter_process(payload, length);
+    } else if (strncmp(S_MAIL_MASK, topic, strlen(S_MAIL_MASK)) == 0) {
+        // handel twitter status update
+#ifdef DEBUG_PRINT
+        Serial.println("Mail Status");
+#endif
+        mail_process(topic, payload, length);
 	} // end if else
   
 } // end void callback(char* topic, byte* payload,int length)
@@ -181,6 +305,8 @@ void checkMQTT()
 			client.publish(P_STATUS, RESTART);
 			client.subscribe(S_RX);
 			client.subscribe(S_STATUS);
+            client.subscribe(S_TWITTER);
+            client.subscribe(S_MAIL);
 #ifdef DEBUG_PRINT
 			Serial.println("MQTT Reconect");
 #endif
@@ -281,7 +407,7 @@ void getTemps()
 		
 		for (int i=0; i < numberOfDevices; i++) {
 			// build mqtt message in pmsg[] buffer, address:temp
-			memset(pmsg, 0, 141);
+			memset(pmsg, 0, DMSG);
 			uint8_t p = 0;
 			
 			// address to pmsg first
@@ -370,6 +496,26 @@ void printAddress(DeviceAddress deviceAddress)
 	}
 } // end void printAdress()
 
+
+
+/**************************************************** 
+ * setupToggle
+ * setup toggle between the buffers
+ * 
+ ****************************************************/
+void setupToggle() {
+    myMatrix.toggleStart(0,2);
+    myMatrix.toggleStart(1,3);
+    // myMatrix.toggleStart(2,0);
+    // myMatrix.toggleStart(3,1);
+    // TODO 006
+    //myMatrix.toggleStart(4,0);    
+    //myMatrix.toggleStart(5,0); 
+
+} // end void setupToggle()
+
+
+
 void setup()
 {
 	// Start Serial
@@ -388,8 +534,29 @@ void setup()
 	
 	// Start matrix and display version
 	myMatrix.begin();  
-	myMatrix.selectFont(0,Tekton); 
-	myMatrix.setLine(0,VERSION_STRING,1,1); //default font is goin to cause issue here
+	myMatrix.selectFont(0,DEFAULT_FONT); 
+	myMatrix.setLine(0,VERSION_STRING,0,1); //default font is goin to cause issue here
+    myMatrix.clrLine(1);
+    myMatrix.clrLine(2);
+    myMatrix.clrLine(3);
+    myMatrix.clrLine(4);
+    myMatrix.clrLine(5);
+    
+    
+    myMatrix.cascadeSetup(0,2);
+    myMatrix.cascadeSetup(2,4);
+    myMatrix.cascadeSetup(4,0);
+    
+    myMatrix.cascadeSetup(1,3);
+    myMatrix.cascadeSetup(3,5);
+    myMatrix.cascadeSetup(5,1);
+    
+    //myMatrix.hideLine(1);
+    myMatrix.hideLine(2);
+    myMatrix.hideLine(3);
+    myMatrix.hideLine(4);
+    myMatrix.hideLine(5);
+    
 	myMatrix.loop();
 	myMatrix.enable();
 	
@@ -402,10 +569,16 @@ void setup()
 		client.publish(P_STATUS, RESTART);
 		client.subscribe(S_RX);
 		client.subscribe(S_STATUS);
+        client.subscribe(S_TWITTER);
+        client.subscribe(S_MAIL);
 	}
-	
+	// setupToggle();
+    
 	// let everything else settle
 	delay(100);
+	
+	myMatrix.cascadeStart(0);
+	myMatrix.cascadeStart(1);
 	
 } // end void setup()
 

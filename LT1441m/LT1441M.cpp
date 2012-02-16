@@ -23,6 +23,7 @@
 History
 	001 - Initial release  
 	002 - Complete rewrite with out print.h class, using own internal msg buffers
+    003 - changes for 8 buffer lines, working toggle and better clrline
 	
 Known issues:
 	None
@@ -115,7 +116,9 @@ void LT1441M::clrScreen(void){					// clears the screen and returns cursor to (0
 		memset(frameBuffer[i], 0, sizeof(frameBuffer[i]));
 		frameOffset[i] = 0;
 	}
-#ifdef DEBUG_PRINT
+	// ***LWK*** 6/2/12 should this also clr _currentLines ??
+	_currentLines = 0;
+#ifdef DEBUG_PRINT1
 	Serial.println("clrScreen");
 #endif	
 	
@@ -124,7 +127,7 @@ void LT1441M::clrScreen(void){					// clears the screen and returns cursor to (0
 void LT1441M::clrPage(byte page){				// Clear a single page and return cursor to (0, page)
 	memset(frameBuffer[page], 0, sizeof(frameBuffer[page]));
 	frameOffset[page] = 0;
-#ifdef DEBUG_PRINT
+#ifdef DEBUG_PRINT1
 	Serial.print("clrPage page: ");
 	Serial.println(page, DEC);
 #endif							// return cursor to (0, page)
@@ -132,6 +135,10 @@ void LT1441M::clrPage(byte page){				// Clear a single page and return cursor to
 
 void LT1441M::clrLine(byte line){								// clear msg[line] buffer 
 	// ***LWK*** so need to clr framebuffer as well 12/07
+    // if in frame buffer now also clear that?
+    if (_currentLines & (1 << line)) {
+        clrPage((msg[line].flags & PAGE_1) >> 4); 
+    }
 	memset(msg[line].buffer, 0, sizeof(msg[line].buffer));
 	msg[line].position = 0;
 	msg[line].offset = 0;
@@ -143,20 +150,21 @@ void LT1441M::clrLine(byte line){								// clear msg[line] buffer
 	msg[line].tTimeout = 0;
 	msg[line].fontColor = BLACK;
 	msg[line].font = DEFAULT_FONT;
+
 	_currentLines &= ~(1 << line);
-	if (line == 1 || line == 3)
+	if (line == 1 || line == 3 || line == 5 || line == 7)
 		msg[line].flags |= PAGE_1;
-#ifdef DEBUG_PRINT
+#ifdef DEBUG_PRINT1
 	Serial.print("clrLine:");
 	Serial.println(line, DEC);
 #endif	
 } //end void LT1441M::clrLine(byte line)
 
-void LT1441M::setLine(byte line, char* txt, byte show, byte scroll, byte scrollOn, byte dir, byte page/*, const uint8_t* font, byte color*/){
+void LT1441M::setLine(byte line, char* txt, byte showNow, byte scroll, byte scrollOn, byte dir, byte page/*, const uint8_t* font, byte color*/){
 	// check we have room for the string, terminate short otherwise
 	if (strlen(txt) > DMSG-1) {
 		txt[DMSG-1] = '\0';					// terminate string early
-#ifdef DEBUG_PRINT
+#ifdef DEBUG_PRINT1
 		Serial.print("setLine Overflow txt: ");
 		Serial.println(txt);
 #endif	
@@ -175,7 +183,7 @@ void LT1441M::setLine(byte line, char* txt, byte show, byte scroll, byte scrollO
 	// reset positions and show line
 	msg[line].position = 0;
 	msg[line].offset = 0;
-	if (page == 1 || (page == 10 && (line == 1 || line == 3))) {
+	if (page == 1 || (page == 10 && (line == 1 || line == 3 || line == 5 || line == 7))) {
 			msg[line].flags |= PAGE_1;
 	} else /*if (page == 0 || PAGE == 10) */{
 		msg[line].flags &= ~PAGE_1;
@@ -200,13 +208,20 @@ void LT1441M::setLine(byte line, char* txt, byte show, byte scroll, byte scrollO
 	}
 	
 	// copy new line to buffer??
-	if (show) {
+	// ***LWK*** 2/2/12 not good if we are in a toggle also not good if showing another line on that page
+	//
+	if (showNow) {
+		// call show line as thats page and toggle safe
+		showLine(line);
+/*
 		msg[line].flags |= SHOW_LINE;
+		// breaks toggle not page safe
 		_currentLines |= (1 << line);
 		fillBuffer(line);
+*/
 	}
 	
-#ifdef DEBUG_PRINT
+#ifdef DEBUG_PRINT1
 	Serial.print("setLine Line:");
 	Serial.print(line, DEC);
 	Serial.print(" Txt:");
@@ -224,25 +239,50 @@ void LT1441M::setLine(byte line, char* txt, byte show, byte scroll, byte scrollO
 	Serial.print(" Scroll:");
 	Serial.print(scroll, DEC);
 	Serial.print(" Scroll On:");
-	Serial.println(scrollOn);
+	Serial.print(scrollOn, DEC);
+	Serial.print(" CurrentLines:");
+	Serial.println(_currentLines, BIN);
 #endif
 } //end void LT1441M::setLine(byte line, char *txt)
 
 void LT1441M::showLine(byte line){
-	msg[line].flags |= SHOW_LINE;
-	_currentLines |= (1 << line);
-#ifdef DEBUG_PRINT
+#ifdef DEBUG_PRINT1
 	Serial.print("showLine: ");
 	Serial.println(line, DEC);
-#endif	
+#endif
+	msg[line].flags |= SHOW_LINE;
+	// ***LWK*** 2/2/12 should check not showing a line
+	// should also call fill buffer?
+	// going to break current toggle again
+	// ***LWK*** 10/2/12 if not showing a line for this page and or line in other page showing but not big font then can set currentLines and call fillbuffer
+	// if re showing a toggle set tTimeout
+
+    
+	for (byte i=0; i < msgNum; i++) {
+		if (_currentLines & (1 << i) && (msg[i].flags & PAGE_1) >> 4 == (msg[line].flags & PAGE_1) >> 4 || FontRead(msg[i].font+FONT_HEIGHT) > 8) {
+            return;
+		}
+	}
+	_currentLines |= (1 << line);
+	fillBuffer(line);
+	msg[line].tTimeout = millis();
 } //end void LT1441M::showLine(byte line)
 
 void LT1441M::hideLine(byte line){
 	msg[line].flags &= ~SHOW_LINE;
+    // if its on show empty the buffer
+    if (_currentLines & (1 << line)) {
+        clrPage((msg[line].flags & PAGE_1) >> 4); 
+        // if big font clrPage for other
+        
+        // would tTimeout =0 and call toggle update work?
+    }
+    // ***LWK*** 6/2/12 this will break current toggle loop, should move onto next
+    // do it in the if above
 	_currentLines &= ~(1 << line);
 	// ***LWK*** need to clear matching msg[line].flags PAGE??? 11/07
 	// ***LWK*** dont think so as there is not clean its either set or not 12/07
-#ifdef DEBUG_PRINT
+#ifdef DEBUG_PRINT1
 	Serial.print("hideLine: ");
 	Serial.println(line, DEC);
 #endif	
@@ -250,7 +290,7 @@ void LT1441M::hideLine(byte line){
 
 void LT1441M::scrollStart(byte line){ 
 	msg[line].flags |= SCROLL_LINE;
-#ifdef DEBUG_PRINT
+#ifdef DEBUG_PRINT1
 	Serial.print("scrollStart Line: ");
 	Serial.println(line, DEC);
 #endif	
@@ -258,7 +298,7 @@ void LT1441M::scrollStart(byte line){
 
 void LT1441M::scrollStop(byte line){	
 	msg[line].flags &= ~SCROLL_LINE;
-#ifdef DEBUG_PRINT
+#ifdef DEBUG_PRINT1
 	Serial.print("scrollStop Line: ");
 	Serial.println(line, DEC);
 #endif	
@@ -266,7 +306,7 @@ void LT1441M::scrollStop(byte line){
 
 void LT1441M::scrollDelay(byte line, int delay){ 
 	msg[line].sDelay = delay;
-#ifdef DEBUG_PRINT
+#ifdef DEBUG_PRINT1
 	Serial.print("scrollDelay Line: ");
 	Serial.print(line, DEC);
 	Serial.print(" Delay: ");
@@ -280,7 +320,7 @@ void LT1441M::scrollDir(byte line, byte dir){
 	} else {
 		msg[line].flags &= ~SCROLL_NEG;
 	}
-#ifdef DEBUG_PRINT
+#ifdef DEBUG_PRINT1
 	Serial.print("scrollDir Line: ");
 	Serial.print(line, DEC);
 	Serial.print(" Dir: ");
@@ -290,14 +330,17 @@ void LT1441M::scrollDir(byte line, byte dir){
 
 void LT1441M::toggleStart(byte line1, byte line2, int delay){
 	// set to show the first line
+	// ***LWK*** 2/2/12 should we clrPage if removing a line thats on screen
+	// also messy if allready in another toggle thats not been stoped
+	// get really messy if toggeling difrent pages
 	_currentLines |= (1 << line1);
 	_currentLines &= ~(1 << line2);
 	// enable showing of both and seyt toggle 
 	msg[line1].flags |= SHOW_LINE | TOGGLE_LINE;
 	msg[line2].flags |= SHOW_LINE | TOGGLE_LINE;
 	//set which line to switch back to after time out
-	msg[line1].flags |= (line2 << 5);
-	msg[line2].flags |= (line1 << 5);
+	msg[line1].flags |= (line2 << 6);
+	msg[line2].flags |= (line1 << 6);
 	// set switch dealys
 	msg[line1].tDelay = delay;
 	msg[line2].tDelay = delay;
@@ -309,7 +352,7 @@ void LT1441M::toggleStart(byte line1, byte line2, int delay){
 	
 	// start time out for first line
 	msg[line1].tTimeout = millis();
-#ifdef DEBUG_PRINT
+#ifdef DEBUG_PRINT1
 	Serial.print("toggleStart Line1: ");
 	Serial.print(line1, DEC);
 	Serial.print(" Line2: ");
@@ -323,13 +366,68 @@ void LT1441M::toggleStop(byte line1, byte line2){
 	msg[line1].flags &= ~(TOGGLE_MASK|TOGGLE_LINE);
 	msg[line2].flags &= ~(TOGGLE_MASK|TOGGLE_LINE|SHOW_LINE);
 	
-#ifdef DEBUG_PRINT
+#ifdef DEBUG_PRINT1
 	Serial.print("toggleStart Line1: ");
 	Serial.print(line1, DEC);
 	Serial.print(" Line2: ");
 	Serial.println(line2, DEC);
 #endif
 } //end LT1441M::toggleStop(byte line1, byte line2)
+
+void LT1441M::cascadeSetup(byte line1, byte line2, int delay){
+	// based off toggleStart
+
+	// set to show the first line
+	// ***LWK*** 2/2/12 should we clrPage if removing a line thats on screen
+	// also messy if allready in another toggle thats not been stoped
+	// get really messy if toggeling difrent pages
+	// enable showing of both and seyt toggle 
+	msg[line1].flags |= SHOW_LINE | TOGGLE_LINE;
+//	msg[line2].flags |= SHOW_LINE;	// 3/2/12 not sure if should do this
+	//set which line to switch to
+	msg[line1].flags |= (line2 << 6);
+	// set switch dealys
+	msg[line1].tDelay = delay;
+	
+	// update buffer with line1??
+	// or assume its all ready there
+	// TODO
+
+	
+	// start time out for first line
+	// msg[line1].tTimeout = millis();
+#ifdef DEBUG_PRINT1
+	Serial.print("cascadeSetup Line1: ");
+	Serial.print(line1, DEC);
+	Serial.print(" Line2: ");
+	Serial.print(line2, DEC);
+	Serial.print(" Delay: ");
+	Serial.println(delay, DEC);
+#endif
+} //end void LT1441M::cascadeSetup(byte line1, byte line2, int delay=tDelayDefault)
+
+void LT1441M::cascadeStart(byte line) {
+	// start a cascade that been setup om a particular line
+	// set currentLine to line
+	// fillbuffer
+	// start timeout
+#ifdef DEBUG_PRINT1
+	Serial.print("cascadeStart line: ");
+	Serial.println(line, DEC);
+#endif
+	//should check whats showing first and remove any from same page
+	for (byte i=0; i < msgNum; i++) {
+		if (_currentLines & (1 << i) && (msg[i].flags & PAGE_1) >> 4 == (msg[line].flags & PAGE_1) >> 4) {
+			// turn off showing line 
+			_currentLines &= ~(1 << i);
+		}
+	}
+	_currentLines |= (1 << line);
+	fillBuffer(line);
+	msg[line].tTimeout = millis();
+	
+} //end void cascadeStart(byte line)
+
 /*
 void LT1441M::write(byte c){					// write single ASCII char to display
 	if (c == 0x0D){								// check for CR '\r'
@@ -386,14 +484,14 @@ void LT1441M::setRow(byte y){					// set frameBuffer row for write
 */
 void LT1441M::invert(void){						// inverts the display
 	_invert = 1;
-#ifdef DEBUG_PRINT
+#ifdef DEBUG_PRINT1
 	Serial.println("invert");
 #endif
 } //end void LT1441M::invert(void)
 
 void LT1441M::normal(void){						// restore normal operation after invert
 	_invert = 0;
-#ifdef DEBUG_PRINT
+#ifdef DEBUG_PRINT1
 	Serial.println("non-invert");
 #endif
 } //end void LT1441M::normal(void)
@@ -436,7 +534,7 @@ void LT1441M::write_d(byte ins_c, byte page){		// write date to framebuffer
 		frameOffset[page]++;
 	}
 	
-#ifdef DEBUG_PRINT1
+#ifdef DEBUG_PRINT11
 	Serial.print("(");
 	Serial.print(frameOffset[page]-1, DEC);
 	Serial.print(",");
@@ -489,21 +587,69 @@ void LT1441M::updateToggle(){
 	// else if old font 16 and new font 8 set _currentline for other lines if show
 	// fillbuffer() // wont preserv scroll yet
 	// start .tTimeout
-	for (byte line=0; line < dPage+1; line++) {
-		if (_currentLines & 1 << line) {
+	
+	// ***LWK*** 2/2/12 this should not be dPage but num of msg buffers? msgNum
+	// ***LWK*** 3/2/12 this dosent handle a change in page aswell as line
+	for (byte line=0; line < msgNum; line++) {
+		if (_currentLines & (1 << line)) {
 			if ((msg[line].flags & TOGGLE_LINE) == TOGGLE_LINE && (millis() - msg[line].tTimeout) > msg[line].tDelay) {
 				byte line2 = (msg[line].flags & TOGGLE_MASK) >> 6;
+
+#ifdef DEBUG_PRINT1
+				Serial.print("toggle due on line: ");
+				Serial.print(line, DEC);
+				Serial.print(" next line: ");
+				Serial.println(line2, DEC);
+#endif
+				// ***LWK*** 5/2/12 check if new line is to show if not skip it
+				while ( (msg[line2].flags & SHOW_LINE) != SHOW_LINE) {
+#ifdef DEBUG_PRINT1
+					Serial.print("toggle skip line: ");
+					Serial.println(line2, DEC);
+#endif
+					if ( (msg[line2].flags & TOGGLE_LINE) != TOGGLE_LINE) {
+						// no show and no toggle, then empty page and show nothing
+						clrPage( (msg[line].flags & PAGE_1) >> 4);
+						return;
+					} else {
+						line2 = (msg[line2].flags & TOGGLE_MASK) >> 6;
+					}
+				}
+				if ( line == line2) {
+					// skipped all other lines, no need to start scroll again and refill buffer, just reset the tTimeout
+					msg[line].tTimeout = millis();
+					return;
+				}
+				// turn off showing line 
 				_currentLines &= ~(1 << line);
+				
+				// this is for dealing with chnages in font
+				// ***LWK*** 3/2/12 might need an overhaul
 				if (FontRead(msg[line2].font+FONT_HEIGHT) > FontRead(msg[line].font+FONT_HEIGHT) ) {
+					// assume line2 is heading for page 0 and no other line will be displayed
 					_currentLines = (1 << line2);
 				} else if (FontRead(msg[line2].font+FONT_HEIGHT) < FontRead(msg[line].font+FONT_HEIGHT)) {
 					_currentLines |= (1 << line2);
-					for (byte i=0; i < dPage+1; i++) {
+					// going to a smaller font check to see if there was another line set to show and return it to currentLines
+					// should we also reset pos & fill buffer?
+					for (byte i=0; i < msgNum; i++) {
 						if (i != line && i != line2 && (msg[i].flags & SHOW_LINE) == SHOW_LINE) {
 							_currentLines |= (1 << i);
+							// ***LWK*** 6/2/12 should also fill buffer
+							msg[i].offset = 0;
+							msg[i].position = 0;
+							fillBuffer(i);
+							msg[i].tTimeout = millis(); // dosent matter if this is set to toggle
+							break; //??? 6/2/12
 						}
 					}
 				}
+				// should we reset pos??
+				// yes
+				msg[line2].offset = 0;
+				msg[line2].position = 0;
+				// not page safe
+				_currentLines |= (1 << line2);
 				fillBuffer(line2);
 				msg[line2].tTimeout = millis();
 			}
@@ -518,8 +664,10 @@ void LT1441M::updateScroll(){
 	// putOne
 	// else if scrollOn && .sTimeout && .position == strlen(msg[line].buffer) && .offest != dxRAM - .length
 	// putOne
-	for (byte line=0; line < dPage+1; line++) {
-		if (_currentLines & 1 << line) {
+	// ***LWK*** 2/2/12 this should not be dPage but num of msg buffers? msgNum
+	for (byte line=0; line < msgNum; line++) {
+		// should also check line is shown
+		if (_currentLines & (1 << line)) {
 			if ((msg[line].flags & SCROLL_LINE) == SCROLL_LINE && (millis() - msg[line].sTimeout) > msg[line].sDelay) {
 				putOne(line);
 			} else if ((msg[line].flags & SCROLL_ON) == SCROLL_ON && (millis() - msg[line].sTimeout) > msg[line].sDelay) {
@@ -564,6 +712,11 @@ void LT1441M::calcLen(byte line){
 } //end void LT1441M::calcLen(byte line)
 
 void LT1441M::fillBuffer(byte line){
+#ifdef DEBUG_PRINT1
+	Serial.print("fillBuffer line: ");
+	Serial.println(line, DEC);
+#endif
+	// assumes _currentLines is setup correct
 	byte page = (msg[line].flags & PAGE_1) >> 4;
 	clrPage(page);
 	if ((msg[line].flags & SCROLL_ON) == SCROLL_ON) {
@@ -573,10 +726,10 @@ void LT1441M::fillBuffer(byte line){
 	} else {
 		// fill all dxRAM
 		if (msg[line].length > dxRAM) {
-			Serial.println("LWK2");
+			// Serial.println("LWK2");
 			putFull(line);
 		} else {
-			Serial.println("LWK1");
+			// Serial.println("LWK1");
 			for (int i=0; i < strlen(msg[line].buffer); i++) {
 				putChar(line);
 			}
@@ -637,7 +790,7 @@ void LT1441M::putOne(byte line){
 		if(c < firstChar || c >= (firstChar+charCount)) {
 			// skip unknown char
 			msg[line].position++;
-#ifdef DEBUG_PRINT
+#ifdef DEBUG_PRINT1
 			Serial.print("putOne Unknown char in Line: ");
 			Serial.print(line, DEC);
 			Serial.print(" Position: ");
@@ -725,7 +878,7 @@ void LT1441M::putFull(byte line){
 		if(c < firstChar || c >= (firstChar+charCount)) {
 			// skip unknown char
 			msg[line].position++;
-	#ifdef DEBUG_PRINT
+	#ifdef DEBUG_PRINT1
 			Serial.print("putFull Unknown char in Line: ");
 			Serial.println(line, DEC);
 	#endif
@@ -815,7 +968,7 @@ void LT1441M::putChar(byte line) {			// Put Char to display handels variable fon
 	if(c < firstChar || c >= (firstChar+charCount)) {
 		// skip unknown char
 		msg[line].position++;
-#ifdef DEBUG_PRINT
+#ifdef DEBUG_PRINT1
 		Serial.print("putChar Unknown char in Line: ");
 		Serial.println(line, DEC);
 #endif

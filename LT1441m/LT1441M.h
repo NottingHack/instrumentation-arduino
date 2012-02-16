@@ -45,7 +45,7 @@
 #define  LT1441M_h
 
 //Uncomment for debug prints
-#define DEBUG_PRINT
+#define DEBUG_PRINT1
 
 // include types & constants of Wiring core API
 #include "WProgram.h"
@@ -57,24 +57,25 @@
 #include "SystemFont5x8.h"
 
 
-#define 	DMSG	141				// number of char's for msg buffer length including '\0' max 256
+#define DMSG	141				// number of char's for msg buffer length including '\0' max 256
 
 #define DEFAULT_FONT	System5x8
-#define	SCROLL_RIGHT	0
+#define SCROLL_RIGHT	0
 #define SCROLL_LEFT		1
 
 
 
 
 // typedef for msg buffers
+// 164 bytes per buffer
 typedef struct {
 	char buffer[DMSG];			// actual message buffer
 	int position;				// current char pointer
 	byte offset;				// px offset in current char
 	int length;					// current string length but px of font
-	byte flags;					// scroll and toggle flags (scroll, scrollDir, show, toggle, 
-	int sDelay;					// scroll delay
-	int tDelay;					// toggle delay
+	unsigned int flags;			// scroll and toggle flags (scroll, scrollDir, show, toggle, 
+	unsigned int sDelay;					// scroll delay
+	unsigned int tDelay;					// toggle delay
 	unsigned long sTimeout;		// scroll delay timeout
 	unsigned long tTimeout;		// toggle delay timeout	
 	byte	fontColor;
@@ -119,7 +120,7 @@ private:
 		SCROLL_ON		= 8,					// scroll message onto screen but stop if not also scroll_line
 		PAGE_1			= 16,					// show on page 0 or 1
 		TOGGLE_LINE		= 32,					// toggle after timeout?
-		TOGGLE_MASK		= 192,					// bits 6,7 used to hold next line number to switch to 0,1,2,3
+		TOGGLE_MASK		= 448,					// bits 6,7,8 used to hold next line number to switch to 0,1,2,3,4,5,6,7
 	};
 	
 	enum{										// Enum to hold static values
@@ -159,20 +160,20 @@ private:
 		xMost		= dxRAM-1,
 		yMost		= dyRAM-1,
 		pageLast	= dPage-1,
-		msgNum		= 3,				// total number of line buffers MAX 4(TOGGLE_MASK) HARDMax 256 (byte)
+		msgNum		= 8,				// total number of line buffers MAX 8(TOGGLE_MASK) HARDMax 256 (byte)
 		scrollBuffer = dxScreen-1,		// number of blank col's between end of scroll and start again
 		
-		sDelayDefault = 50,
-		tDelayDefault = 1000,
+		sDelayDefault = 5,
+		tDelayDefault = 60000,
 	};	// end enum
 
 	byte frameBuffer[dPage][dxRAM];
 	int frameOffset[dPage];
 	// int frameX[dPage];			//not sure if i may still need to track X
 	byte _invert;					// invert frameBuffer on output 0 = normal 1 = invert
-	byte _currentLines;				
+	byte _currentLines;				// tracks which lines are on show as bit mask, in theory max of dPage bits set at any time
 	
-	messageBuffer msg[3];
+	messageBuffer msg[msgNum];
 
 // Private Methods /////////////////////////////////////////////////////////////
 // Functions only available to other functions in this library
@@ -212,7 +213,7 @@ public:
 	void clrPage(byte page);								// Clear a single page and return cursor to (0,page)
 	void clrLine(byte line);								// clear msg[line] buffer 
 	
-	void setLine(byte line, char* txt, byte show=0, byte scroll=0, byte scrollOn=0, byte dir=SCROLL_RIGHT, byte page=10/*, const uint8_t* font=DEFAULT_FONT, byte color=BLACK*/);	// set a line of text
+	void setLine(byte line, char* txt, byte showNow=0, byte scroll=0, byte scrollOn=0, byte dir=SCROLL_RIGHT, byte page=10/*, const uint8_t* font=DEFAULT_FONT, byte color=BLACK*/);	// set a line of text
 	void showLine(byte line);								// 
 	void hideLine(byte line);								// 
 	void scrollStart(byte line);							// 
@@ -221,8 +222,13 @@ public:
 	void scrollDir(byte line, byte dir);					// use SCROLL_LEFT and SCROLL_RIGHT for dir
 	void toggleStart(byte line1, byte line2, int delay=tDelayDefault);	// setup toggle between two line starting with line1, setLine() for both first 
 	void toggleStop(byte line1, byte line2);										// stops toggle and leaves line1 showing 
-
-	
+	void cascadeSetup(byte line1, byte line2, int delay=tDelayDefault);	// setup toggle between two line starting with line1, setLine() for both first 
+	void cascadeStart(byte line);
+	// ***LWK*** 3/2/12 posible TODO
+	/*
+	void cascadeStop();										// stop all or just one based in a line in that series
+	void cascadeRemove(bŷte line);							// remove a cascade to the next line
+	*/
 /*	
 	void write(byte);										// write to display
 	
