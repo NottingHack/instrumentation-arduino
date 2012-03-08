@@ -27,6 +27,7 @@
  History
 	000 - Started 28/05/2011
 	001 - Initial release 
+    002 - Minor Upadtes 08/03/2012
  
  Known issues:
 	DEBUG_PRTINT and USB Serial Will NOT WORK if the RFID module is plugged in as this uses the hardware serial
@@ -52,8 +53,8 @@
  
  */
 
-#define VERSION_NUM 001
-#define VERSION_STRING "Gatekeeper Ver: 001"
+#define VERSION_NUM 002
+#define VERSION_STRING "Gatekeeper Ver: 002"
 
 // Uncomment for debug prints
 // This will not work if the RFID module IS plugged in!!
@@ -319,22 +320,27 @@ void pollLastMan()
 	
 	// check see if the magnetic contact has changed
 	if(lastManState != state) {
-		// yes it has so publish to MQTT
-		switch (state) {
-			case OUT:
-			client.publish(P_LAST_MAN_STATE, "Last Out");
-			break;
-			case IN:
-			client.publish(P_LAST_MAN_STATE, "First In");
-			break;
-			default:
-			break;
-		} // end switch
-		
+        // reset debounce timmmer
+        lastManTimeOut = millis();
+
 		// Update State
 		lastManState = state;
 		
 	} // end if
+    
+    if ((millis() - lastManTimeOut) > LAST_MAN_TIMEOUT) {
+        // stable for at least LAST_MAN_TIMEOUT so publish to MQTT
+		switch (lastManState) {
+			case OUT:
+                client.publish(P_LAST_MAN_STATE, "Last Out");
+                break;
+			case IN:
+                client.publish(P_LAST_MAN_STATE, "First In");
+                break;
+			default:
+                break;
+		} // end switch
+    }
 } // end void pollLastMan()
 
 /**************************************************** 
