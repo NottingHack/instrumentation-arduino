@@ -48,7 +48,12 @@
 #define DEBUG_PRINT1
 
 // include types & constants of Wiring core API
-#include "WProgram.h"
+#if ARDUINO >= 100	
+    #include <Arduino.h>
+#else
+    #include <WProgram.h>
+#endif
+
 #include <avr/pgmspace.h>
 
 // include default fonts
