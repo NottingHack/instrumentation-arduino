@@ -51,6 +51,11 @@
 			1>3>5>
 			2>4>6>
 			libary tweeked to sync changes
+    006 - adding basic XRF gateway stuff    07/03/2012
+            new topics 
+            P_XRF   XRF>MQTT
+            S_XRF   MQTT>XRF
+            adding pushXRF() & pollXRF()
             
 			
  
@@ -72,8 +77,8 @@
  
  */
 
-#define VERSION_NUM 005
-#define VERSION_STRING "MatrixMQTT ver: 005"
+#define VERSION_NUM 006
+#define VERSION_STRING "MatrixMQTT ver: 006"
 
 // Uncomment for debug prints
 #define DEBUG_PRINT
@@ -92,8 +97,19 @@
 #include "Config.h"
 
 // function prototypes
-void callbackMQTT(char*, byte*, int);
-void printAddress(DeviceAddress deviceAddress);
+void irc_process(byte*, int);
+void twitter_process(byte*, int);
+void mail_process(char*, byte*, int);
+void pushXRF(char*, byte*, int);
+void callbackMQTT(char*, byte*, unsigned int);
+void checkMQTT();
+void poll();
+void pollXRF();
+uint8_t bufferNumber(unsigned long, uint8_t, uint8_t);
+uint8_t bufferFloat(double, uint8_t, uint8_t);
+void getTemps();
+void findSensors();
+void printAddress(DeviceAddress);
 void setupToggle();
 
 // compile on holly need this befor callbackMQTT
@@ -101,6 +117,7 @@ LT1441M myMatrix(GSI, GAEO, LATCH, CLOCK, RAEO, RSI);
 // compile on holly needs this after callbackMQTT
 PubSubClient client(server, MQTT_PORT, callbackMQTT);
 char pmsg[DMSG];
+char LLAPmsg[LLAP_BUFFER_LENGHT];
 
 // Setup a oneWire instance to communicate with any OneWire devices (not just Maxim/Dallas temperature ICs)
 OneWire oneWire(ONE_WIRE_BUS);
@@ -259,11 +276,26 @@ void mail_process(char* topic, byte* payload, int length) {
 } // end void mail_process(char* topic, byte* payload, int length)
 
 /**************************************************** 
+ * pushXRF 
+ * Read incoming LLAP from MQTT and push to XRF 
+ ****************************************************/
+void pushXRF(char* topic, byte* payload, int length) {
+    // basic implementation
+    
+    // clear the buffer
+    memset(LLAPmsg, 0, LLAP_BUFFER_LENGHT);
+    
+    memcpy(LLAPmsg, payload, LLAP_BUFFER_LENGHT-1);
+    
+    Serial1.print(LLAPmsg);
+} 
+
+/**************************************************** 
  * callbackMQTT
  * called when we get a new MQTT
- * work out which topic was ublished to and handel as needed
+ * work out which topic was published to and handel as needed
  ****************************************************/
-void callbackMQTT(char* topic, byte* payload, int length) {
+void callbackMQTT(char* topic, byte* payload, unsigned int length) {
 
   // handle message arrived
 	if (!strcmp(S_RX, topic)) {
@@ -289,7 +321,12 @@ void callbackMQTT(char* topic, byte* payload, int length) {
         Serial.println("Mail Status");
 #endif
         mail_process(topic, payload, length);
-	} // end if else
+	} else if (strncmp(S_XRF_MASK, topic, strlen(S_XRF_MASK)) == 0) {
+#ifdef DEBUG_PRINT
+        Serial.println("Push XRF");
+#endif        
+        pushXRF(topic, payload, length);
+    } // end if else
   
 } // end void callback(char* topic, byte* payload,int length)
 
@@ -298,8 +335,7 @@ void callbackMQTT(char* topic, byte* payload, int length) {
  * reconnect if needed
  *  
  ****************************************************/
-void checkMQTT()
-{
+void checkMQTT() {
   	if(!client.connected()){
 		if (client.connect(CLIENT_ID)) {
 			client.publish(P_STATUS, RESTART);
@@ -307,6 +343,7 @@ void checkMQTT()
 			client.subscribe(S_STATUS);
             client.subscribe(S_TWITTER);
             client.subscribe(S_MAIL);
+            client.subscribe(S_XRF);
 #ifdef DEBUG_PRINT
 			Serial.println("MQTT Reconect");
 #endif
@@ -323,6 +360,24 @@ void poll()
 
 } // end void poll()
 
+/**************************************************** 
+ * pollXRF 
+ * Read incoming LLAP from XRF and push to MQTT 
+ ****************************************************/
+void pollXRF() {
+    if (Serial1.available() >= 12){
+        if (Serial1.read() == 'a') {
+            //clear the buffer
+            memset(LLAPmsg, 0, LLAP_BUFFER_LENGHT);
+            int pos = 0;
+            LLAPmsg[pos++] = 'a';
+            while (pos < 12) {
+                LLAPmsg[pos++] = Serial1.read();
+            }
+            client.publish(P_XRF, LLAPmsg);
+        }
+    }
+} 
 
 /**************************************************** 
  * bufferNumber
@@ -527,10 +582,12 @@ void setup()
   
 	// Setup Pins
 	pinMode(GROUND, OUTPUT);
+    pinMode(XRF_POWER_PIN, OUTPUT);
 
 	// Set default output's
 	digitalWrite(GROUND, LOW);
-
+    // turn on XRF before start serial output
+    digitalWrite(XRF_POWER_PIN, HIGH);
 	
 	// Start matrix and display version
 	myMatrix.begin();  
@@ -564,6 +621,10 @@ void setup()
 	dallas.begin();
 	findSensors();
 	
+    //Start XRF Serial
+    Serial1.begin(XRF_BAUD);
+    
+    
 	// Start MQTT and say we are alive
 	if (client.connect(CLIENT_ID)) {
 		client.publish(P_STATUS, RESTART);
@@ -571,6 +632,7 @@ void setup()
 		client.subscribe(S_STATUS);
         client.subscribe(S_TWITTER);
         client.subscribe(S_MAIL);
+        client.subscribe(S_XRF);
 	}
 	// setupToggle();
     
@@ -588,7 +650,10 @@ void loop()
 	
 	// Poll 
 	//poll();
-	
+    
+    // poll XRF for incoming LLAP
+	pollXRF();
+    
 	// Poll MQTT
 	// should cause callback if theres a new message
 	client.loop();
