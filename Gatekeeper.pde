@@ -67,6 +67,8 @@
 #include "Config.h"
 #include "Backdoor.h"
 
+PubSubClient client(server, MQTT_PORT, callbackMQTT);
+
 void callbackMQTT(char* topic, byte* payload, int length) {
 
 	// handle message arrived
@@ -107,8 +109,6 @@ void callbackMQTT(char* topic, byte* payload, int length) {
 	} // end if else
 	
 } // end void callback(char* topic, byte* payload,int length)
-
-PubSubClient client(server, MQTT_PORT, callbackMQTT);
 
 
 void setup()
@@ -325,12 +325,15 @@ void pollLastMan()
 
 		// Update State
 		lastManState = state;
+        lastManStateSent = false;
 		
 	} // end if
     
-    if ((millis() - lastManTimeOut) > LAST_MAN_TIMEOUT) {
+    if (lastManStateSent == false && lastManState != lastManStateOld && (millis() - lastManTimeOut) > LAST_MAN_TIMEOUT) {
+        lastManStateSent = true;
+        lastManStateOld = lastManState;
         // stable for at least LAST_MAN_TIMEOUT so publish to MQTT
-		switch (lastManState) {
+		switch (lastManStateOld) {
 			case OUT:
                 client.publish(P_LAST_MAN_STATE, "Last Out");
                 break;

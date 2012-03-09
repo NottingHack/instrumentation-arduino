@@ -111,7 +111,9 @@ byte lcdState = 0;
 #define IN HIGH
 #define OUT LOW
 boolean lastManState = OUT;
-#define LAST_MAN_TIMEOUT 30000
+boolean lastManStateOld = OUT;
+boolean lastManStateSent = false;
+#define LAST_MAN_TIMEOUT 15000
 unsigned long lastManTimeOut = 0;
 
 // MQTT 
