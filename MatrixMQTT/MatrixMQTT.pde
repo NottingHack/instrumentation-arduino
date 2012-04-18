@@ -101,7 +101,7 @@ void irc_process(byte*, int);
 void twitter_process(byte*, int);
 void mail_process(char*, byte*, int);
 void pushXRF(char*, byte*, int);
-void callbackMQTT(char*, byte*, unsigned int);
+void callbackMQTT(char*, byte*, int);
 void checkMQTT();
 void poll();
 void pollXRF();
@@ -117,7 +117,7 @@ LT1441M myMatrix(GSI, GAEO, LATCH, CLOCK, RAEO, RSI);
 // compile on holly needs this after callbackMQTT
 PubSubClient client(server, MQTT_PORT, callbackMQTT);
 char pmsg[DMSG];
-char LLAPmsg[LLAP_BUFFER_LENGHT];
+char LLAPmsg[LLAP_BUFFER_LENGTH];
 
 // Setup a oneWire instance to communicate with any OneWire devices (not just Maxim/Dallas temperature ICs)
 OneWire oneWire(ONE_WIRE_BUS);
@@ -162,9 +162,11 @@ void irc_process(byte* payload, int length) {
         // strip DISPLAY_STRING, send rest to Matrix
         //char msg[length - sizeof(NICK_STRING) + 2];
         memset(pmsg, 0, DMSG);
+        pmsg[0] = '<';
         for(int i = 0; i < (length - strlen(NICK_STRING)); i++) {
-            pmsg[i] = (char)payload[i + sizeof(NICK_STRING) -1];
+            pmsg[i + 1] = (char)payload[i + sizeof(NICK_STRING) -1];
         } // end for
+        pmsg[length - strlen(NICK_STRING)+1] = '>';
         
         myMatrix.selectFont(0,DEFAULT_FONT);
         myMatrix.setLine(0, pmsg, 0, 0, 1);
@@ -280,13 +282,24 @@ void mail_process(char* topic, byte* payload, int length) {
  * Read incoming LLAP from MQTT and push to XRF 
  ****************************************************/
 void pushXRF(char* topic, byte* payload, int length) {
-    // basic implementation
+    // pre fill buffer with padding
+    memset(LLAPmsg, '-', LLAP_BUFFER_LENGTH);
+	// add a null terminator to make it a string
+    LLAPmsg[LLAP_BUFFER_LENGTH - 1] = 0;
+    // start char for LLAP packet
+    LLAPmsg[0] = 'a';
     
-    // clear the buffer
-    memset(LLAPmsg, 0, LLAP_BUFFER_LENGHT);
+	// copy <DEVID> from topic
+    memcpy(LLAPmsg +1, topic + strlen(S_XRF_MASK), LLAP_DEVID_LENGTH);
     
-    memcpy(LLAPmsg, payload, LLAP_BUFFER_LENGHT-1);
+    // little memory overflow protection
+    if ((length) > LLAP_DATA_LENGTH) {
+        length = LLAP_DATA_LENGTH;
+    }
+    // copy mqtt payload into messgae
+    memcpy(LLAPmsg+3, payload, length);
     
+    // send it out via the XRF
     Serial1.print(LLAPmsg);
 } 
 
@@ -295,7 +308,7 @@ void pushXRF(char* topic, byte* payload, int length) {
  * called when we get a new MQTT
  * work out which topic was published to and handel as needed
  ****************************************************/
-void callbackMQTT(char* topic, byte* payload, unsigned int length) {
+void callbackMQTT(char* topic, byte* payload, int length) {
 
   // handle message arrived
 	if (!strcmp(S_RX, topic)) {
@@ -366,18 +379,31 @@ void poll()
  ****************************************************/
 void pollXRF() {
     if (Serial1.available() >= 12){
+		delay(5);
         if (Serial1.read() == 'a') {
+			
+        	// build full topic by read in <DEVID>
+			char llapTopic[strlen(P_XRF) + LLAP_DEVID_LENGTH + 1];
+			memset(llapTopic, 0, strlen(P_XRF) + LLAP_DEVID_LENGTH + 1);
+			strcpy(llapTopic, P_XRF);
+			llapTopic[strlen(P_XRF)] = Serial1.read();
+			llapTopic[strlen(P_XRF)+1] = Serial1.read();
+			
             //clear the buffer
-            memset(LLAPmsg, 0, LLAP_BUFFER_LENGHT);
-            int pos = 0;
-            LLAPmsg[pos++] = 'a';
-            while (pos < 12) {
-                LLAPmsg[pos++] = Serial1.read();
+            memset(LLAPmsg, 0, LLAP_BUFFER_LENGTH);
+            char t;
+            // read in rest of message for mqtt payload
+            for(int pos=0; pos < LLAP_DATA_LENGTH; pos++) {
+            	t = Serial1.read();
+
+            	if(t != '-')
+                	LLAPmsg[pos] = t;
             }
-            client.publish(P_XRF, LLAPmsg);
+        
+            client.publish(llapTopic, LLAPmsg);
         }
     }
-} 
+}
 
 /**************************************************** 
  * bufferNumber

@@ -85,8 +85,9 @@ byte ip[]     = { 10, 0, 0, 61 };
 #define XRF_POWER_PIN 8
 
 //LLAP messgaes are 12 char's long + NULL terminator
-#define LLAP_BUFFER_LENGHT  13
-
+#define LLAP_BUFFER_LENGTH 13
+#define LLAP_DEVID_LENGTH 2
+#define LLAP_DATA_LENGTH 9
 
 // MQTT 
 
@@ -102,13 +103,13 @@ byte server[] = { 10, 0, 0, 2 };
 #define S_TWITTER	"nh/twitter/rx/hs"
 #define S_MAIL      "nh/mail/rx/#"
 #define S_MAIL_MASK   "nh/mail/rx/"
-#define S_XRF       "nh/xrf/tx"
-#define S_XRF_MASK  "nh/xrf/tx"
+#define S_XRF       "nh/xrf/tx/#"
+#define S_XRF_MASK  "nh/xrf/tx/"
 
 // Publish Topics
 
 #define P_TX		"nh/mb/rx"
-#define P_XRF       "nh/xrf/rx"
+#define P_XRF       "nh/xrf/rx/"
 
 // Status Topic, use to say we are alive or DEAD (will)
 #define S_STATUS "nh/status"
