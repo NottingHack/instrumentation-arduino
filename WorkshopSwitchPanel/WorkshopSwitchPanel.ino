@@ -15,7 +15,7 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. 
  *
- * Lighting Automation Controler
+ * Lighting Automation Switch
  *
  * 
  ****************************************************/
@@ -23,6 +23,7 @@
  History
      000 - Started 28/04/2012
      001 - Initial release
+
 
  Known issues:
  
@@ -47,7 +48,7 @@
 #include <SPI.h>
 #include <Ethernet.h>
 #include <PubSubClient.h>
-#include "WorkshopController.h"
+#include "WorkshopSwitchPanel.h"
 
 
 /**************************************************** 

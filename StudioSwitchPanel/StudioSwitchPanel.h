@@ -26,8 +26,8 @@
  
  */
 
-#ifndef  STUDIOCONTROLLER_h
-#define  STUDIOCONTROLLER_h
+#ifndef  STUDIOSWITCHPANEL_h
+#define  STDUIOSWITCHPANEL_h
 
 /**************************************************** 
  * genral defines
@@ -48,8 +48,8 @@
  *
  ****************************************************/
 EthernetClient ethClient;
-byte mac[]    = { 0xDE, 0xED, 0xB4, 0xFE, 0xFE, 0x1E };
-byte ip[]     = { 10, 0, 0, 65 }; 
+byte mac[]    = { 0xDE, 0xED, 0xB4, 0xFE, 0xFE, 0x3E };
+byte ip[]     = { 10, 0, 0, 67 }; 
 
 
 /**************************************************** 
@@ -64,7 +64,7 @@ void callbackMQTT(char*, byte*, unsigned int);
 PubSubClient mqttClient(mqttIp, MQTT_PORT, callbackMQTT, ethClient);
 
 // ClientId for connecting to MQTT
-#define CLIENT_ID "StudioController"
+#define CLIENT_ID "StudioSwitchPanel"
 
 // Subscribe to topics
 #define S_RX		"nh/tx/#"
@@ -77,7 +77,7 @@ PubSubClient mqttClient(mqttIp, MQTT_PORT, callbackMQTT, ethClient);
 #define S_STATUS "nh/status"
 #define P_STATUS "nh/status"
 #define STATUS_STRING "STATUS"
-#define RUNNING "Running: StudioController"
-#define RESTART "Restart: StudioController"
+#define RUNNING "Running: StudioSwitchPanel"
+#define RESTART "Restart: StudioSwitchPanel"
 
 #endif

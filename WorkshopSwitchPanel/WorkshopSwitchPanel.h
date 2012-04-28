@@ -15,7 +15,7 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. 
  *
- * Lighting Automation Controler
+ * Lighting Automation Swicth
  *
  * 
  ****************************************************/
@@ -26,8 +26,8 @@
  
  */
 
-#ifndef  STUDIOCONTROLLER_h
-#define  STUDIOCONTROLLER_h
+#ifndef  WORKSHOPSWITCHPANEL_h
+#define  WORKSHOPSWITCHPANEL_h
 
 /**************************************************** 
  * genral defines
@@ -48,8 +48,8 @@
  *
  ****************************************************/
 EthernetClient ethClient;
-byte mac[]    = { 0xDE, 0xED, 0xB4, 0xFE, 0xFE, 0x1E };
-byte ip[]     = { 10, 0, 0, 65 }; 
+byte mac[]    = { 0xDE, 0xED, 0xB4, 0xFE, 0xFE, 0x4E };
+byte ip[]     = { 10, 0, 0, 68 }; 
 
 
 /**************************************************** 
@@ -64,7 +64,7 @@ void callbackMQTT(char*, byte*, unsigned int);
 PubSubClient mqttClient(mqttIp, MQTT_PORT, callbackMQTT, ethClient);
 
 // ClientId for connecting to MQTT
-#define CLIENT_ID "StudioController"
+#define CLIENT_ID "WorkshopSwitchPanel"
 
 // Subscribe to topics
 #define S_RX		"nh/tx/#"
@@ -77,7 +77,7 @@ PubSubClient mqttClient(mqttIp, MQTT_PORT, callbackMQTT, ethClient);
 #define S_STATUS "nh/status"
 #define P_STATUS "nh/status"
 #define STATUS_STRING "STATUS"
-#define RUNNING "Running: StudioController"
-#define RESTART "Restart: StudioController"
+#define RUNNING "Running: WorkshopSwitchPanel"
+#define RESTART "Restart: WorkshopSwitchPanel"
 
 #endif
