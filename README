@@ -1,3 +1,37 @@
-Ardunio Firmware's that control the lighting at Nottingham Hackspace
+Arduino Firmware's that control the lighting at Nottingham Hackspace
 For more detail check out our wiki
 http://wiki.nottinghack.org.uk/wiki/Lighting_Automation
+
+These sketches are build around arduino1.0 IDE with 'RepRap' Matts tweaked PubSubClient from
+https://github.com/dpslwk/pubsubclient
+
+MQTT Topics
+
+nh/li/set/RR/ZZ  C
+ ZZ = room's
+        ALL
+        hall
+        comfy
+        studio
+        workshop
+        electronics
+        blue
+        kitchen
+        toilet
+        textile
+        storage
+        box
+        
+ ZZ = zone, 0,1,2,3,4,5 etc
+        0 is all zones in room
+        
+ C = command
+    TOGGLE
+    ON
+    OFF
+    
+nh/li/state/RR/ZZ  S
+
+ S = current state  (ratainted)     
+    ON
+    OFF

@@ -104,20 +104,9 @@ void setup() {
 	Serial.println(VERSION_STRING);
 #endif
 	
-	// Start ethernet on the OpenKontrol Gateway
-	// handles static ip or DHCP automatically
-	if(ip){
-		Ethernet.begin(mac, ip);
-	} else {
-		if (Ethernet.begin(mac) == 0) {
-#ifdef DEBUG_PRINT
-			Serial.println("Failed to configure Ethernet using DHCP");
-#endif
-			// no point in carrying on, so do nothing forevermore:
-			for(;;)
-				;
-		}
-	}
+	// Start ethernet
+    Ethernet.begin(mac, ip);
+    
     
 #ifdef DEBUG_PRINT
 	Serial.println("Ethernet Up");
