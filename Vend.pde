@@ -877,6 +877,8 @@ void loop()
      }
    
     } // end if (MDB.available())
+    
+
     net_loop();
     
     
@@ -927,7 +929,9 @@ void cancel_pressed()
     cancel_vend = 1;
     memset(rfid_serial, 0, sizeof(rfid_serial)); 
     memset(tran_id, 0, sizeof(tran_id));       
-    card_state = NO_CARD;  
+    card_state = NO_CARD;
+    rfid_reader.flush(); // clear any buffered card details
+    memset(rfidReturn, 0, sizeof(rfidReturn));
   } else
   {
     dbg_println("Nothing to cancel");
@@ -1108,7 +1112,7 @@ void net_rx_set_debug(byte *payload)
     
   gDebug = new_dlvl;  
   dbg_println("set debug");
-  gDebug = 2;
+//  gDebug = 2;
 } 
 
 
@@ -1293,6 +1297,7 @@ bool pollRFID()
   } else if (rfidReturn[3] == 1 && rfidReturn[4] != 131 && (millis() - cardTimeOut) > CARD_TIMEOUT) 
   {
     cardTimeOut = millis();
+    dbg_println("Unknown Card Type");
   //  Serial.println("Unknown Card Type");
   } 
   return false;

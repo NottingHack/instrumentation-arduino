@@ -73,7 +73,7 @@ char tran_id[10]; // transaction id
 
 
 // timeout in mills for how often the same card is read
-#define CARD_TIMEOUT 3000
+#define CARD_TIMEOUT 1000
 unsigned long cardTimeOut = 0;
 
 //Input / Output
