@@ -35,7 +35,7 @@
 // Update these with values suitable for your network.
 byte mac[]    = {  0xDE, 0xED, 0xBA, 0xFE, 0xFE, 0xED }; // ***LWK*** should randomise this, or use nanode on chip mac, if we have pins :/ and code
 // Gatekeeper's Reserved IP
-byte ip[]     = { 10, 0, 0, 60 }; 
+byte ip[]     = { 192, 168, 0, 10 }; 
 
 // Door Bell Relay
 // Volt Free switching
@@ -119,7 +119,7 @@ unsigned long lastManTimeOut = 0;
 // MQTT 
 
 // MQTT server on holly
-byte server[] = { 10, 0, 0, 2 };
+byte server[] = { 192, 168, 0, 1 };
 #define MQTT_PORT 1883
 
 // ClientId for connecting to MQTT
