@@ -55,7 +55,7 @@ static byte server[4] = { 192, 168, 1, 146};
   
 // The Gateway Ip address
 // Can be the same as the server if on same subnet  
-static byte gwip[4] ={ 10, 0, 0, 2};
+static byte gwip[4] ={ 192,168,0,1};
 
 // EtherShield Packet Buffer
 #define BUFFER_SIZE 300
