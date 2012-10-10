@@ -99,7 +99,7 @@ unsigned long cardTimeOut = 0;
 #define LCD_DEFAULT_1 "Nottingham Hackspace"
 #define LCD_TIMEOUT 5000
 unsigned long lcdTimeOut = 0;
-byte lcdState = 0;
+byte lcdState = 2;
 #define DEFAULT 0
 #define CUSTOM 1
 

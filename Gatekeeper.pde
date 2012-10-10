@@ -143,12 +143,14 @@ void setup()
         // delay to make sure ethernet is awake
 	delay(100);
 	// Start MQTT and say we are alive
-	if (client.connect(CLIENT_ID)) {
+	checkMQTT();
+    /*
+    if (client.connect(CLIENT_ID)) {
 		client.publish(P_STATUS,RESTART);
 		client.subscribe(S_UNLOCK);
 		client.subscribe(S_STATUS);
 	} // end if
-	
+	*/
 	// Setup Interrupt
 	// let everything else settle
 	delay(100);
@@ -158,7 +160,9 @@ void setup()
 
 void loop()
 {
-	
+    // are we still connected to MQTT
+	checkMQTT();
+    
 	// Poll RFID
 	pollRFID();
 	
@@ -186,8 +190,6 @@ void loop()
 	// has the button been press
 	pollDoorBell();
 
-	// are we still connected to MQTT
-	checkMQTT();
 	
 } // end void loop()
 
