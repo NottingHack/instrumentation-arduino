@@ -56,7 +56,9 @@
             P_XRF   XRF>MQTT
             S_XRF   MQTT>XRF
             adding pushXRF() & pollXRF()
-            
+    007 - added door button handeling   11/10/2012
+            now subscribes and publishes to 
+            nh/gk/DoorButton            
 			
  
  Known issues:
@@ -77,8 +79,8 @@
  
  */
 
-#define VERSION_NUM 006
-#define VERSION_STRING "MatrixMQTT ver: 006"
+#define VERSION_NUM 007
+#define VERSION_STRING "MatrixMQTT ver: 007"
 
 // Uncomment for debug prints
 #define DEBUG_PRINT
@@ -111,6 +113,9 @@ void getTemps();
 void findSensors();
 void printAddress(DeviceAddress);
 void setupToggle();
+void doorButton();
+void pollDoorBell();
+
 
 // compile on holly need this befor callbackMQTT
 LT1441M myMatrix(GSI, GAEO, LATCH, CLOCK, RAEO, RSI);
@@ -339,6 +344,13 @@ void callbackMQTT(char* topic, byte* payload, int length) {
         Serial.println("Push XRF");
 #endif        
         pushXRF(topic, payload, length);
+    } else if (!strcmp(S_DOOR_BUTTON, topic)) {
+        // check for door state messages
+        if (strncmp(DOOR_INNER, (char*)payload, strlen(DOOR_INNER)) == 0) {
+			doorButtonState = DOOR_STATE_INNER;
+        } else if (strncmp(DOOR_REAR, (char*)payload, strlen(DOOR_REAR)) == 0) {
+			doorButtonState = DOOR_STATE_REAR;
+		} // end if
     } // end if else
   
 } // end void callback(char* topic, byte* payload,int length)
@@ -357,6 +369,7 @@ void checkMQTT() {
             client.subscribe(S_TWITTER);
             client.subscribe(S_MAIL);
             client.subscribe(S_XRF);
+            client.subscribe(S_DOOR_BUTTON);
 #ifdef DEBUG_PRINT
 			Serial.println("MQTT Reconect");
 #endif
@@ -381,13 +394,20 @@ void pollXRF() {
     if (Serial1.available() >= 12){
 		delay(5);
         if (Serial1.read() == 'a') {
-			
-        	// build full topic by read in <DEVID>
+			char devid[3];
+			devid[2] = 0;
+            // build full topic by read in <DEVID>
 			char llapTopic[strlen(P_XRF) + LLAP_DEVID_LENGTH + 1];
 			memset(llapTopic, 0, strlen(P_XRF) + LLAP_DEVID_LENGTH + 1);
 			strcpy(llapTopic, P_XRF);
-			llapTopic[strlen(P_XRF)] = Serial1.read();
-			llapTopic[strlen(P_XRF)+1] = Serial1.read();
+			devid[0] = Serial1.read();
+			devid[1] = Serial1.read();
+			Serial1.print('a');
+			Serial1.print(devid);
+			Serial1.print("ACK------");
+			Serial1.flush();
+			llapTopic[strlen(P_XRF)] = devid[0];
+			llapTopic[strlen(P_XRF)+1] = devid[1];
 			
             //clear the buffer
             memset(LLAPmsg, 0, LLAP_BUFFER_LENGTH);
@@ -595,7 +615,69 @@ void setupToggle() {
 
 } // end void setupToggle()
 
+/**************************************************** 
+ * Interrupt method for door bell button
+ * time out stop button being pushhed to often
+ * arduino timers dont run inside interrupt's so 
+ * millis() will return same value and delay() wont work
+ *  
+ ****************************************************/
+void doorButton()
+{
+	if((millis() - doorTimeOut) > DOOR_BUTTON_TIMEOUT) {
+	    // reset time out
+	    doorTimeOut = millis();
+		doorButtonState = DOOR_STATE_OUTER;
+	} // end if
+} // end void doorButton()
 
+/**************************************************** 
+ * Has the door bell button been pressed
+ * state is set from interupt routine
+ *
+ ****************************************************/
+void pollDoorBell() 
+{
+	if(doorButtonState == DOOR_STATE_INNER) {
+	    // clear state 
+		doorButtonState = DOOR_STATE_NONE;
+/*
+		digitalWrite(DOOR_BELL, HIGH);
+		delay(DOOR_BELL_LENGTH);
+		digitalWrite(DOOR_BELL, LOW);
+*/
+    } else if(doorButtonState == DOOR_STATE_OUTER) {
+        // clear state
+		doorButtonState = DOOR_STATE_NONE;
+		client.publish(P_DOOR_BUTTON, DOOR_OUTER);
+/*
+        digitalWrite(DOOR_BELL, HIGH);
+		delay(DOOR_BELL_LENGTH/2);
+		digitalWrite(DOOR_BELL, LOW);
+        delay(DOOR_BELL_LENGTH/2);
+        digitalWrite(DOOR_BELL, HIGH);
+		delay(DOOR_BELL_LENGTH/2);
+		digitalWrite(DOOR_BELL, LOW);
+*/
+    } else if(doorButtonState == DOOR_STATE_REAR){
+        // clear state
+		doorButtonState = DOOR_STATE_NONE;
+		client.publish(P_DOOR_BUTTON, DOOR_REAR);
+/*
+        digitalWrite(DOOR_BELL, HIGH);
+		delay(DOOR_BELL_LENGTH/4);
+		digitalWrite(DOOR_BELL, LOW);
+        delay(DOOR_BELL_LENGTH/4);
+        digitalWrite(DOOR_BELL, HIGH);
+		delay(DOOR_BELL_LENGTH/4);
+		digitalWrite(DOOR_BELL, LOW);
+        delay(DOOR_BELL_LENGTH/4);
+        digitalWrite(DOOR_BELL, HIGH);
+		delay(DOOR_BELL_LENGTH/4);
+		digitalWrite(DOOR_BELL, LOW);
+*/
+	} // end if
+} // end void pollDoorBell()
 
 void setup()
 {
@@ -609,6 +691,7 @@ void setup()
 	// Setup Pins
 	pinMode(GROUND, OUTPUT);
     pinMode(XRF_POWER_PIN, OUTPUT);
+	pinMode(DOOR_BUTTON, INPUT);
 
 	// Set default output's
 	digitalWrite(GROUND, LOW);
@@ -665,6 +748,7 @@ void setup()
 	// let everything else settle
 	delay(100);
 	
+	attachInterrupt(1, doorButton, HIGH);
 	myMatrix.cascadeStart(0);
 	myMatrix.cascadeStart(1);
 	
@@ -689,6 +773,10 @@ void loop()
 	
 	// Get Latest Temps
 	getTemps();
+	
+	// Poll Door Bell
+	// has the button been press
+	pollDoorBell();
 	
 	// are we still connected to MQTT
 	checkMQTT();

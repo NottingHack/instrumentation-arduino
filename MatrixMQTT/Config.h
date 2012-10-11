@@ -89,6 +89,23 @@ byte ip[]     = { 192, 168, 0, 11 };
 #define LLAP_DEVID_LENGTH 2
 #define LLAP_DATA_LENGTH 9
 
+// Door Bell Button
+// HIGH = PUSHED
+// Interrupt PIN
+#define DOOR_BUTTON 3
+// timeout in mills for how often the doorbell can be rang
+#define DOOR_BUTTON_TIMEOUT 5000
+unsigned long doorTimeOut = 0;
+boolean doorButtonState = 0;
+
+#define DOOR_STATE_NONE 0
+#define DOOR_STATE_INNER 1
+#define DOOR_STATE_OUTER 2
+#define DOOR_STATE_REAR 3
+#define DOOR_INNER "INNER"
+#define DOOR_OUTER "OUTER"
+#define DOOR_REAR "REAR"
+
 // MQTT 
 
 // MQTT server on holly
@@ -105,11 +122,15 @@ byte server[] = { 192, 168, 0, 1 };
 #define S_MAIL_MASK   "nh/mail/rx/"
 #define S_XRF       "nh/xrf/tx/#"
 #define S_XRF_MASK  "nh/xrf/tx/"
+#define S_DOOR_BUTTON    "nh/gk/DoorButton"
+
 
 // Publish Topics
 
 #define P_TX		"nh/mb/rx"
 #define P_XRF       "nh/xrf/rx/"
+#define P_DOOR_BUTTON		"nh/gk/DoorButton"
+
 
 // Status Topic, use to say we are alive or DEAD (will)
 #define S_STATUS "nh/status"
