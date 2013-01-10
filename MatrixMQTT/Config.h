@@ -95,6 +95,7 @@ byte ip[]     = { 192, 168, 0, 11 };
 #define DOOR_BUTTON 3
 // timeout in mills for how often the doorbell can be rang
 #define DOOR_BUTTON_TIMEOUT 5000
+#define DOOR_BUTTON_DELAY 100 /* How long to wait before ringing the bell */
 unsigned long doorTimeOut = 0;
 boolean doorButtonState = 0;
 

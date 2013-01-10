@@ -647,9 +647,22 @@ void pollDoorBell()
 		digitalWrite(DOOR_BELL, LOW);
 */
     } else if(doorButtonState == DOOR_STATE_OUTER) {
-        // clear state
-		doorButtonState = DOOR_STATE_NONE;
-		client.publish(P_DOOR_BUTTON, DOOR_OUTER);
+      
+      if((millis() - doorTimeOut) > DOOR_BUTTON_DELAY) 
+      {
+        /* Check pin is still LOW */
+        if (digitalRead(DOOR_BUTTON) == LOW)
+        {
+          // clear state
+          doorButtonState = DOOR_STATE_NONE;
+          client.publish(P_DOOR_BUTTON, DOOR_OUTER);
+        } else
+        {
+          /* Pin not low - probably just noise */
+          doorButtonState = DOOR_STATE_NONE;
+        }
+      }
+      
 /*
         digitalWrite(DOOR_BELL, HIGH);
 		delay(DOOR_BELL_LENGTH/2);
@@ -662,7 +675,7 @@ void pollDoorBell()
     } else if(doorButtonState == DOOR_STATE_REAR){
         // clear state
 		doorButtonState = DOOR_STATE_NONE;
-		client.publish(P_DOOR_BUTTON, DOOR_REAR);
+//		client.publish(P_DOOR_BUTTON, DOOR_REAR);
 /*
         digitalWrite(DOOR_BELL, HIGH);
 		delay(DOOR_BELL_LENGTH/4);
@@ -692,6 +705,7 @@ void setup()
 	pinMode(GROUND, OUTPUT);
     pinMode(XRF_POWER_PIN, OUTPUT);
 	pinMode(DOOR_BUTTON, INPUT);
+	digitalWrite(DOOR_BUTTON, HIGH);
 
 	// Set default output's
 	digitalWrite(GROUND, LOW);
@@ -748,9 +762,10 @@ void setup()
 	// let everything else settle
 	delay(100);
 	
-	attachInterrupt(1, doorButton, HIGH);
+	attachInterrupt(1, doorButton, FALLING);
 	myMatrix.cascadeStart(0);
 	myMatrix.cascadeStart(1);
+  
 	
 } // end void setup()
 
