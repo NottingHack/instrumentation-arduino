@@ -7,34 +7,25 @@
  * Source = http://wiki.nottinghack.org.uk/wiki/...
  * Target controller = Arduino 328 (Nanode v5)
  * Clock speed = 16 MHz
- * Development platform = Arduino IDE 0022
- * C compiler = WinAVR from Arduino IDE 0022
+ * Development platform = Arduino IDE 1.0.3
+ * C compiler = WinAVR from Arduino IDE 1.0.3
  * 
  * 
  * This code is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. 
- *
- * Large LED Matrix Display Board at 
- * Nottingham Hackspace and is part of the 
- * Hackspace Instrumentation Project
- *
  * 
  ****************************************************/
-
 
 /*
  These are the global config parameters
  Including Pin Outs, IP's, TimeOut's etc
  
- Arduino Wiznet sheild uses pings 10, 11, 12, 13 for the ethernet
- Nanode v5 uses pins 8, 11, 12, 13 for the ethernet
- 
+ Arduino Wiznet sheild uses pings 10, 11, 12, 13 for the ethernet 
  */
 
-
 // Update these with values suitable for your network.
-byte mac[]    = {  0xDE, 0xED, 0xBA, 0xFE, 0x65, 0xEE }; // ***LWK*** should randomise this, or use nanode on chip mac, if we have pins :/ and code
+byte mac[]    = {  0xDE, 0xED, 0xBA, 0xFE, 0x65, 0xEF }; // ***LWK*** should randomise this
 // MartixMQTT's Reserved IP
 byte ip[]     = { 192, 168, 0, 19 };
 
@@ -69,21 +60,16 @@ byte server[] = { 192, 168, 0, 1 };
 #define MQTT_PORT 1883
 
 // buffer size
-#define DMSG	141
+#define DMSG	50
 
 // ClientId for connecting to MQTT
 #define CLIENT_ID "Workshop"
 
 // Subscribe to topics
-
 #define S_DOOR_BUTTON    "nh/gk/DoorButton"
 
-
 // Publish Topics
-
-
 #define P_DOOR_BUTTON		"nh/gk/DoorButton"
-
 
 // Status Topic, use to say we are alive or DEAD (will)
 #define S_STATUS "nh/status"
@@ -91,8 +77,6 @@ byte server[] = { 192, 168, 0, 1 };
 #define STATUS_STRING "STATUS"
 #define RUNNING "Running: WorkshopMQTT"
 #define RESTART "Restart: WorkshopMQTT"
-
-
 
 // temp sensor configs
 #define ONE_WIRE_PWR	6
