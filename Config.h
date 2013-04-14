@@ -33,7 +33,7 @@ byte ip[]     = { 192, 168, 0, 19 };
 // Volt Free switching
 // ***LWK*** use pin 10 for nanode v5 or pin 8 for wiznet, dont forget to move soldered line on the proto sheild (needs a jumper)
 #define DOOR_BELL 8
-#define DOOR_BELL_LENGTH 250
+#define DOOR_BELL_LENGTH 400
 
 
 // Door Bell Button
@@ -41,7 +41,7 @@ byte ip[]     = { 192, 168, 0, 19 };
 // Interrupt PIN
 #define DOOR_BUTTON 3
 // timeout in mills for how often the doorbell can be rang
-#define DOOR_BUTTON_TIMEOUT 5000
+#define DOOR_BUTTON_TIMEOUT 2000
 unsigned long doorTimeOut = 0;
 boolean doorButtonState = 0;
 

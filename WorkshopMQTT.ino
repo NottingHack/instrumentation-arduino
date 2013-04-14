@@ -375,6 +375,8 @@ void setup()
   // Setup Pins
   pinMode(DOOR_BUTTON, INPUT);
   digitalWrite(DOOR_BUTTON, HIGH);
+  pinMode(DOOR_BELL, OUTPUT);
+  digitalWrite(DOOR_BELL, LOW);
   
   // start the one wire bus and dallas stuff
   dallas.begin();
