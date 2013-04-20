@@ -36,7 +36,7 @@
 #ifndef Config_h
 #define Config_h
 
-#include "WProgram.h"
+#include "Arduino.h"
 
 // Update these with values suitable for your network.
 static byte mac[]    = {  0xDE, 0xED, 0xBA, 0xFE, 0xFE, 0xAD }; // ***LWK*** should randomise this, or use nanode on chip mac, if we have pins :/ and code

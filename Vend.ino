@@ -43,6 +43,8 @@
  James Hayward    jhayward1980 at gmail.com
  Daniel Swann     hs at dswann.co.uk
  
+ For more details, see:
+ http://wiki.nottinghack.org.uk/wiki/Vending_Machine/Cashless_Device_Implementation
  */
 
 #define VERSION_NUM 001
@@ -71,7 +73,9 @@
 // shows human readable msgs on serial line, shouldn't mess with timing
 #define HUMAN_PRINT
 
-#include <NewSoftSerial.h>
+#define SESSION_TIMEOUT 45000 // 45secs.
+
+#include <SoftwareSerial.h>
 #include <EtherShield.h>
 #include "Config.h"
 #include <NanodeUNIO.h>
@@ -113,7 +117,7 @@ struct net_msg_t
 
 struct MDB_Byte recvData[10];
 struct MDB_Byte sendData[10];
-NewSoftSerial rfid_reader(RFID_RX,RFID_TX);
+SoftwareSerial rfid_reader(RFID_RX,RFID_TX);
 byte sendLength;
 int rst;
 int debug;
@@ -581,7 +585,7 @@ void MDB_poll()
      } else 
      {
        // vend should work!
-       allowVend = 0;
+       //allowVend = 0;
      }
      
      if (debug) dbg_println("allowed vend");
@@ -710,9 +714,7 @@ void MDB_vend()
       amount = recvData[2].data << 8;
       amount += recvData[3].data;
       amount_scaled = (amount * SCALE_FACTOR);
-      
-     // sprintf(buf, "Vendreq %.2x, %.2x", recvData[2], recvData[3]); 
-     // if (debug) dbg_print(buf);
+
       sprintf(buf, "Vendreq %d (%dp)", amount, amount_scaled); 
      
       if (debug) dbg_print(buf);      
@@ -724,14 +726,6 @@ void MDB_vend()
         MDB_Write(sACK);
         allowVend = 0;
         net_tx_vreq(amount_scaled);   // Send VREQ message for the amount
-
-//        allowVend = checkVend(recvData);
-        // let's see what the vmc has sent DEBUG
-        //if (debug) dbg_println("vend started: ");
-        //for (i = 2; i < 6; i++) {
-        //  if (debug) dbg_print("b: ");
-        //  if (debug) dbg_println(recvData[i], HEX);
-        //}
       } else 
       {
         MDB_Write(sNAK);
@@ -746,6 +740,7 @@ void MDB_vend()
       sprintf(buf, "%.2x-%.2x", recvData[2].data, recvData[3].data); 
       MDB_Write(sACK);
       net_tx_vsuc(buf);
+      allowVend = 0;
       break;
       
    case VEND_FAILURE:     
@@ -793,24 +788,15 @@ void MDB_vend()
 
 void loop() 
 {
-  
-/*  while (1)     
-  {
-      while ( !( UCSR0A & (1<<UDRE0))); 
-    // if (mdbb.mode)
-     //   UCSR0B |= (1<<TXB80);
-  
-      UDR0 = '0';
-  }
-  */
   int i;
   uint16_t plen, dat_p;
   byte readcard = 0;
   char tmpstr[16];
+  bool flush_buffer = false;
+  unsigned long time_card_read=0;
   
   while (1)
   {
-    
     if ((UCSR0A & (1<<RXC0))) 
     {
       get_MDB_Byte(&recvData[0]);
@@ -850,7 +836,7 @@ void loop()
             
           default:
             // should never get here once done programing all features
-            dbg_println("Unknown Command recv");
+            dbg_println ("Unknown Cmd recv");
             break;
         } 
       } else // end if 
@@ -861,23 +847,39 @@ void loop()
           readcard = 1;
         }      
     
-      // Poll RFID
-      if ((state == sENABLED) && (card_state == NO_CARD) && (readcard) && (!(recvData[0].mode)))
-      {
-        readcard=0;
-        // we can now check for a card
-        if (pollRFID())
+        // Poll RFID
+        if ((state == sENABLED) && (card_state == NO_CARD) && (readcard) && (!(recvData[0].mode)))
         {
-          // card has been read
-          card_state = NET_WAIT;     
-          net_tx_auth(); // try to authenticate card
+          readcard=0;
+          time_card_read=0;
+          
+          // If this is the first time polling the reader since we successfully read a card, flush its buffer
+          if (flush_buffer)
+          {
+            soft_serial_flush();
+            flush_buffer = false;
+            time_card_read = 0;
+          }
+          
+          // we can now check for a card
+          if (pollRFID())
+          {
+            // card has been read
+            card_state = NET_WAIT;     
+            net_tx_auth(); // try to authenticate card
+            flush_buffer = true;
+            time_card_read = millis();
+          }
         }
       }
-      
-     }
-   
     } // end if (MDB.available())
     
+    if (time_card_read && ((millis() - time_card_read) > SESSION_TIMEOUT))
+    {
+      dbg_println("ses timeout");
+      cancel_pressed();
+      time_card_read = 0;     
+    }
 
     net_loop();
     
@@ -1266,7 +1268,7 @@ bool pollRFID()
    if (gDebug > 1) dbg_println("Poll R");
   // quickly send query to read cards serial
   for (int i=0; i < 8; i++)
-    rfid_reader.print(query[i]);
+    rfid_reader.write(query[i]);
   
   // get the serial number
   read_response(rfidReturn);
@@ -1309,7 +1311,7 @@ void read_response(unsigned char* dataResp)
   byte incomingByte;
   byte responsePtr =0;
   unsigned long time = millis();
-  while (millis() - time < 4) 
+  while (millis() - time < 20) 
   {
     // read the incoming byte:
     if (rfid_reader.available() > 0) 
@@ -1322,3 +1324,14 @@ void read_response(unsigned char* dataResp)
   dataResp[responsePtr]=0;
 } // end void read_response(char* DATARESP)
 
+void soft_serial_flush()
+{
+  if (rfid_reader.available() > 0)
+  {
+    dbg_println("Flushing RFID serial buffer");
+    while(rfid_reader.available() > 0)
+      rfid_reader.read();
+      
+    memset(rfid_serial, 0, sizeof(rfid_serial));
+  }
+}
