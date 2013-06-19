@@ -37,6 +37,10 @@ byte mac[]    = {  0xDE, 0xED, 0xBA, 0xFE, 0xFE, 0xED }; // ***LWK*** should ran
 // Gatekeeper's Reserved IP
 byte ip[]     = { 192, 168, 0, 10 }; 
 
+// Display is a 20x2 character LCD
+#define LCD_X 20
+#define LCD_Y 2
+
 // Door Bell Relay
 // Volt Free switching
 // ***LWK*** use pin 10 for nanode v5 or pin 8 for wiznet, dont forget to move soldered line on the proto sheild (needs a jumper)
@@ -72,7 +76,7 @@ unsigned long magTimeOut = 0;
 #define UNLOCK HIGH
 #define LOCK LOW
 #define UNLOCK_STRING "Unlock:"
-#define UNLOCK_DELIM ":"
+#define UNLOCK_DELIM ":"  
 
 // timeout in millis for the how long the magnetic release will stay unlocked
 #define MAG_REL_TIMEOUT 5000
