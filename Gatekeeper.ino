@@ -6,11 +6,11 @@
  * CC-BY-SA
  *
  * Source = http://wiki.nottinghack.org.uk/wiki/Gatekeeper
- * Target controller = Arduino 328 (Nanode v5)
+ * Target controller = Arduino 328 with Wiznet shield
  * Clock speed = 16 MHz
- * Development platform = Arduino IDE 0022
- * C compiler = WinAVR from Arduino IDE 0022
- * 
+ * Development platform = Arduino IDE 1.0.1
+ * C compiler = WinAVR from Arduino IDE 1.0.1
+ *
  * 
  * This code is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -27,7 +27,8 @@
  History
 	000 - Started 28/05/2011
 	001 - Initial release 
-    002 - Minor Upadtes 08/03/2012
+        002 - Minor Updates 08/03/2012
+        003 - Move to Arduino 1.x + add LCD wordwrap
  
  Known issues:
 	DEBUG_PRTINT and USB Serial Will NOT WORK if the RFID module is plugged in as this uses the hardware serial
@@ -53,8 +54,8 @@
  
  */
 
-#define VERSION_NUM 002
-#define VERSION_STRING "Gatekeeper Ver: 002"
+#define VERSION_NUM 003
+#define VERSION_STRING "Gatekeeper Ver: 003"
 
 // Uncomment for debug prints
 // This will not work if the RFID module IS plugged in!!
@@ -67,9 +68,10 @@
 #include "Config.h"
 #include "Backdoor.h"
 
-PubSubClient client(server, MQTT_PORT, callbackMQTT);
+EthernetClient ethClient;
+PubSubClient client(server, MQTT_PORT, callbackMQTT, ethClient);
 
-void callbackMQTT(char* topic, byte* payload, int length) {
+void callbackMQTT(char* topic, byte* payload, unsigned int length) {
 
 	// handle message arrived
 	if (!strcmp(S_UNLOCK, topic)) {
@@ -202,7 +204,7 @@ void pollRFID()
 {
 	// quickly send query to read cards serial
 	for (int i=0; i < 8; i++){
-		Serial.print(query[i]) ;
+		Serial.write(query[i]) ;
 	} // end for
 	
 	// get the serial number
@@ -404,21 +406,119 @@ void doorButton()
  ****************************************************/
 void updateLCD(char* msg)
 {
-	if (msg != NULL) {
-	    lcdTimeOut = millis();
-		lcdState = CUSTOM;
-		clearLCD();
-		sendStr(msg);
-	} else if ((millis() - lcdTimeOut) > LCD_TIMEOUT && lcdState != DEFAULT) {
-	    lcdTimeOut = millis();
-		lcdState = DEFAULT;
-		clearLCD();
-		setCursorLCD(0,0);
-		sendStr(LCD_DEFAULT_0);
-		setCursorLCD(0,1);
-		sendStr(LCD_DEFAULT_1);
-	} // end else if
+  if (msg != NULL) {
+    lcdTimeOut = millis();
+    lcdState = CUSTOM;
+    clearLCD();
+    print_wrapped(msg);
+  } else if ((millis() - lcdTimeOut) > LCD_TIMEOUT && lcdState != DEFAULT) {
+    lcdTimeOut = millis();
+    lcdState = DEFAULT;
+    clearLCD();
+    setCursorLCD(0,0);
+    sendStr(LCD_DEFAULT_0);
+    setCursorLCD(0,1);
+    sendStr(LCD_DEFAULT_1);
+  } // end else if
 } // end void 
+
+
+
+/**************************************************** 
+ * Output line to LCD, and increment lineno.  
+ * If last line of LCD written, returns TRUE  
+ ****************************************************/
+boolean output_line(int *lineno, char *str, int typ)
+{
+  setCursorLCD(0, (*lineno)++);
+  sendStr(str);
+  
+  if (*lineno >= LCD_Y)
+    return true;
+  else
+    return false;
+}
+
+/**************************************************** 
+ * Word wrap *msg and output to LCD
+ *  
+ ****************************************************/
+void print_wrapped(char *msg)
+{
+  int word_len, space_remain;
+  int line_no = 0;
+  char msg_line[LCD_X+1];
+  char *mptr = msg;
+ 
+  space_remain = LCD_X;
+  msg_line[0] = '\0';
+  while (*mptr!='\0')
+  {
+    word_len = 0;
+    while (*mptr!='\0' && *mptr++!=' ')
+      word_len++;
+    
+    // Special case - the word is longer than the display width
+    if (word_len > LCD_X)
+    {
+      // output current line
+      if (msg_line[0] != '\0')
+        if(output_line(&line_no, msg_line, 1)) return;
+      
+      // Start new line
+      msg_line[0] = '\0'; 
+      space_remain = LCD_X;  
+      
+      while (word_len > 0)
+      {
+        memset(msg_line, 0, sizeof(msg_line));
+        strncpy(msg_line, (mptr-word_len), (word_len >= LCD_X ? LCD_X : word_len));
+        msg_line[LCD_X] = '\0';
+        if (word_len > LCD_X)
+          if(output_line(&line_no, msg_line, 2)) return;
+          
+        //word_len -= LCD_X;
+        word_len -= (word_len >= LCD_X ? LCD_X : word_len);
+      }
+      strcat(msg_line, " ");
+
+      space_remain = LCD_X - strlen(msg_line);
+      
+    }
+    else if (word_len <= space_remain) // space left on current line -> add to line
+    {
+      if (*mptr)
+      {
+        strncat(msg_line, (mptr-word_len-1), word_len);
+        if (word_len < space_remain) 
+         strcat(msg_line, " ");
+        space_remain -= word_len+1;
+      }
+      else
+      {
+        strncat(msg_line, (mptr-word_len), word_len);
+        space_remain -= word_len;
+      }
+    } 
+    else // Not enough space left - output current line, and add word to new line
+    {
+      // output
+      if(output_line(&line_no, msg_line, 3)) return;
+      
+      // Start new line
+      msg_line[0] = '\0';
+      space_remain = LCD_X;
+      
+      strncat(msg_line, (mptr-word_len - ((*(mptr-word_len-1) == ' ') ? 0 : 1) ), word_len);
+      
+      strcat(msg_line, " ");
+    }
+  }
+  
+  if (msg_line[0] != '\0')
+    if (output_line(&line_no, msg_line, 4)) return;
+
+}
 
 /**************************************************** 
  * Main Door unlock routine
