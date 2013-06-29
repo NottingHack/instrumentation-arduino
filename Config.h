@@ -130,10 +130,10 @@ byte server[] = { 192, 168, 0, 1 };
 #define CLIENT_ID "Gatekeeper"
 
 // Subscribe to topics
-#define S_UNLOCK		"nh/gk/Unlock"
+#define S_UNLOCK        "nh/gk/Unlock"
+#define S_DOOR_BUTTON   "nh/gk/DoorButton"
 
 // Publish Topics
-
 #define P_DOOR_STATE		"nh/gk/DoorState"
 #define P_KEYPAD			"nh/gk/Keypad"
 #define P_DOOR_BUTTON		"nh/gk/DoorButton"
@@ -147,7 +147,13 @@ byte server[] = { 192, 168, 0, 1 };
 #define RUNNING "Running: Gatekeeper"
 #define RESTART "Restart: Gatekeeper"
 
-
+#define DOOR_STATE_NONE 0
+#define DOOR_STATE_INNER 1
+#define DOOR_STATE_OUTER 2
+#define DOOR_STATE_REAR 3
+#define DOOR_INNER "INNER"
+#define DOOR_OUTER "OUTER"
+#define DOOR_REAR "REAR"
 
 
 

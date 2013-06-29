@@ -1,4 +1,3 @@
-
 /****************************************************	
  * sketch = Gatekeeper
  *
@@ -25,8 +24,8 @@
 
 /*  
  History
-	000 - Started 28/05/2011
-	001 - Initial release 
+        000 - Started 28/05/2011
+        001 - Initial release 
         002 - Minor Updates 08/03/2012
         003 - Move to Arduino 1.x + add LCD wordwrap
  
@@ -108,7 +107,15 @@ void callbackMQTT(char* topic, byte* payload, unsigned int length) {
 		if (strncmp(STATUS_STRING, (char*)payload, strlen(STATUS_STRING)) == 0) {
 			client.publish(P_STATUS, RUNNING);
 		} // end if
-	} // end if else
+	} else if (!strcmp(S_DOOR_BUTTON, topic)) 
+        {
+          // Request to ring door bell - either outer or rear, but not inner, as that button is connected to this arduino
+          if (!strncmp(DOOR_OUTER, (char*)payload, strlen(DOOR_OUTER)))        // Outer door bell
+            doorButtonState = DOOR_STATE_OUTER;
+          else if (!strncmp(DOOR_REAR, (char*)payload, strlen(DOOR_REAR)))     //  Rear door bell
+            doorButtonState = DOOR_STATE_REAR;
+        }
+          
 	
 } // end void callback(char* topic, byte* payload,int length)
 
@@ -351,21 +358,56 @@ void pollLastMan()
 } // end void pollLastMan()
 
 /**************************************************** 
- * Has the door bell button been pressed
- * state is set from interupt routine
+ * Has either the door bell button been pressed
+ * (state is set from interupt routine), or an 
+ * MQTT message received to ring the bell
  *
  ****************************************************/
-void pollDoorBell() 
+void pollDoorBell()
 {
-	if(doorButtonState) {
-	    // clear state 
-		doorButtonState = 0;
-		digitalWrite(DOOR_BELL, HIGH);
-		client.publish(P_DOOR_BUTTON, "BING");
-		delay(DOOR_BELL_LENGTH);
-		digitalWrite(DOOR_BELL, LOW);
-	} // end if
+  if(doorButtonState == DOOR_STATE_INNER)
+  {
+    // clear state
+    doorButtonState = DOOR_STATE_NONE;
+    
+    // Inner button is connected to this arduino, so publish ring of inner bell
+    client.publish(P_DOOR_BUTTON, DOOR_INNER);
+
+    digitalWrite(DOOR_BELL, HIGH);
+    delay(DOOR_BELL_LENGTH);
+    digitalWrite(DOOR_BELL, LOW);
+
+  } else if(doorButtonState == DOOR_STATE_OUTER)
+  {
+    // clear state
+    doorButtonState = DOOR_STATE_NONE;
+
+    digitalWrite(DOOR_BELL, HIGH);
+    delay(DOOR_BELL_LENGTH/2);
+    digitalWrite(DOOR_BELL, LOW);
+    delay(DOOR_BELL_LENGTH/2);
+    digitalWrite(DOOR_BELL, HIGH);
+    delay(DOOR_BELL_LENGTH/2);
+    digitalWrite(DOOR_BELL, LOW);
+  } else if(doorButtonState == DOOR_STATE_REAR)
+  {
+    // clear state
+    doorButtonState = DOOR_STATE_NONE;
+
+    digitalWrite(DOOR_BELL, HIGH);
+    delay(DOOR_BELL_LENGTH/4);
+    digitalWrite(DOOR_BELL, LOW);
+    delay(DOOR_BELL_LENGTH/4);
+    digitalWrite(DOOR_BELL, HIGH);
+    delay(DOOR_BELL_LENGTH/4);
+    digitalWrite(DOOR_BELL, LOW);
+    delay(DOOR_BELL_LENGTH/4);
+    digitalWrite(DOOR_BELL, HIGH);
+    delay(DOOR_BELL_LENGTH/4);
+    digitalWrite(DOOR_BELL, LOW);
+  } // end if
 } // end void pollDoorBell()
+
 
 /**************************************************** 
  * check we are still connected to MQTT
@@ -374,13 +416,14 @@ void pollDoorBell()
  ****************************************************/
 void checkMQTT()
 {
-  	if(!client.connected()){
-		if (client.connect(CLIENT_ID)) {
-			client.publish(P_STATUS, RESTART);
-			client.subscribe(S_UNLOCK);
-			client.subscribe(S_STATUS);
-		} // end if
-	} // end if
+    if(!client.connected()){
+    if (client.connect(CLIENT_ID)) {
+      client.publish(P_STATUS, RESTART);
+      client.subscribe(S_UNLOCK);
+      client.subscribe(S_STATUS);
+      client.subscribe(S_DOOR_BUTTON);
+    } // end if
+  } // end if
 } // end checkMQTT()
 
 /**************************************************** 
@@ -393,9 +436,9 @@ void checkMQTT()
 void doorButton()
 {
 	if((millis() - doorTimeOut) > DOOR_BUTTON_TIMEOUT) {
-	    // reset time out
-	    doorTimeOut = millis();
-		doorButtonState = 1;
+          // reset time out
+          doorTimeOut = millis();
+          doorButtonState = DOOR_STATE_INNER;
 	} // end if
 } // end void doorButton()
 
