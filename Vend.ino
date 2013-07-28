@@ -8,8 +8,8 @@
  * Source = http://wiki.nottinghack.org.uk/wiki/...
  * Target controller = Arduino 328 (Nanode v5)
  * Clock speed = 16 MHz
- * Development platform = Arduino IDE 0022
- * C compiler = WinAVR from Arduino IDE 0022
+ * Development platform = Arduino IDE 1.0.1
+ * C compiler = WinAVR from Arduino IDE 1.0.1
  * 
  * 
  * This code is distributed in the hope that it will be useful,
@@ -27,6 +27,7 @@
  History
   000 - Started 01/08/2011
   001 - Initial release
+  002 - Add LCD
 
  
  Known issues:
@@ -48,7 +49,7 @@
  */
 
 #define VERSION_NUM 001
-#define VERSION_STRING "Vend ver: 001"
+#define VERSION_STRING "Vend ver: 003"
 
 
 
@@ -75,14 +76,16 @@
 
 #define SESSION_TIMEOUT 45000 // 45secs.
 
+#define LCD_WIDTH 16
+
 #include <SoftwareSerial.h>
 #include <EtherShield.h>
 #include "Config.h"
 #include <NanodeUNIO.h>
 #include <util/setbaud.h>
 #include <EEPROM.h>
-
-
+#include <LiquidCrystal_I2C.h>
+#include <Wire.h> 
 
 // The ethernet shield
 EtherShield es=EtherShield();
@@ -96,6 +99,7 @@ static uint8_t dstip[4] = {192,168,0,1};
 const char iphdr[] PROGMEM ={0x45,0,0,0x82,0,0,0x40,0,0x20}; // 0x82 is the total
 char udpPayload [48];
 char rfid_serial[20];
+bool update_lcd = false;
 
 uint8_t  srcport = 11023;
 
@@ -124,6 +128,9 @@ int debug;
 byte ret_button;
 short gDebug;
 byte rf_count;
+LiquidCrystal_I2C lcd(0x27,LCD_WIDTH,2);
+
+const char lcd_msg1[] PROGMEM = "Ready...";
 
 byte validateChecksum(struct MDB_Byte* data, byte length) 
 {
@@ -283,6 +290,10 @@ void serial_write(struct MDB_Byte mdbb)
 
 void setup() 
 {  
+  lcd.init();   
+  lcd.backlight();
+  lcd.print(F("Initialising..."));
+  
   // Clear tx/rx buffers
   memset(recvData, 0, sizeof(recvData));
   memset(sendData, 0, sizeof(sendData));
@@ -354,6 +365,7 @@ void setup()
   net_tx_debug(); // reqeust debug level
   
   dbg_print("Init complete");  
+  lcd.clear();
 } // end void setup()
 
 
@@ -652,6 +664,8 @@ void MDB_reader()
 #ifdef HUMAN_PRINT
         if (debug) dbg_println("State Change: Enabled!");
 #endif
+        lcd.clear();
+        lcd.print(F("Ready..."));
       } else 
       {
         // we are not in the correct state
@@ -679,6 +693,7 @@ void MDB_reader()
         memset(rfid_serial, 0, sizeof(rfid_serial));
 
         if (debug) dbg_println("State Change: Disabled! (VMC commanded)");
+        lcd.clear();
 
       } else 
       {
@@ -740,6 +755,7 @@ void MDB_vend()
       sprintf(buf, "%.2x-%.2x", recvData[2].data, recvData[3].data); 
       MDB_Write(sACK);
       net_tx_vsuc(buf);
+      lcd.clear();
       allowVend = 0;
       break;
       
@@ -904,7 +920,6 @@ void loop()
      ret_button = false;
    }
    
-   
   } // while(1)
 } // end void loop()
 
@@ -927,6 +942,7 @@ void cancel_pressed()
   
   if ((rfid_serial[0] != 0) || (tran_id[0] != 0))
   {
+    lcd.clear();
     net_tx_vcan();
     cancel_vend = 1;
     memset(rfid_serial, 0, sizeof(rfid_serial)); 
@@ -945,6 +961,7 @@ void net_loop()
   int i;
   uint16_t plen, dat_p;
 
+  memset(buf, 0, BUFFER_SIZE);
   plen = es.ES_enc28j60PacketReceive(BUFFER_SIZE, buf);
   
   if (plen) // 0 if no packet received
@@ -956,6 +973,7 @@ void net_loop()
       // Is it UDP & on the expected port?
       if ((buf[IP_PROTO_P] == IP_PROTO_UDP_V) && (buf[UDP_DST_PORT_H_P]==PORT_H) && (buf[UDP_DST_PORT_L_P] == PORT_L )) 
       {
+        memset(&net_msg, 0, sizeof(net_msg));
         memcpy(net_msg.msgtype, buf+UDP_DATA_P, 4);
         memcpy(net_msg.payload, buf+UDP_DATA_P+5, sizeof(net_msg.payload));  
         
@@ -973,6 +991,9 @@ void net_loop()
           
         else if (!(strncmp((char*)net_msg.msgtype, "DBUG", 4))) // DeBUG
           net_rx_set_debug(net_msg.payload);          
+          
+        else if (!(strncmp((char*)net_msg.msgtype, "DISP", 4))) // DISPlay
+          net_rx_display(net_msg.payload);                
       }   
     }
   }
@@ -1117,6 +1138,55 @@ void net_rx_set_debug(byte *payload)
 //  gDebug = 2;
 } 
 
+void net_rx_display(byte *payload)
+{
+  // Display payload on LCD display - \n in string seperates line 1+2.
+  char ln1[LCD_WIDTH+1];
+  char ln2[LCD_WIDTH+1];
+  char *payPtr, *lnPtr;
+
+  payPtr = (char*)payload;
+
+  memset(ln1, 0, sizeof(ln1));
+  memset(ln2, 0, sizeof(ln2)); 
+  
+  /* Clear display */
+  lcd.clear();  
+  
+  lnPtr = ln1;
+  for (int i=0; i < LCD_WIDTH; i++)
+  {    
+    if ((*payPtr=='\n') || (*payPtr=='\0') || (*payPtr=='\r'))
+    {
+      payPtr++;
+      break;
+    }
+    
+   *lnPtr++ = *payPtr++;    
+  }
+
+  lnPtr = ln2;
+  for (int i=0; i < LCD_WIDTH; i++)
+  { 
+    if (*payPtr=='\0')
+      break;
+      
+    if (*payPtr=='\n')
+    {
+      payPtr++;
+      *lnPtr=' ';
+    }
+    
+    *lnPtr++ = *payPtr++;
+  }
+  
+  /* Output 1st line */
+  lcd.print(ln1); 
+  
+  /* Output 2nd line */
+  lcd.setCursor(0, 1);
+  lcd.print(ln2);  
+}
 
 
 // Auth card - on card first being presented, prior to telling the vending machine
