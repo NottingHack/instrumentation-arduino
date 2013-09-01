@@ -64,6 +64,7 @@
 #include <Ethernet.h>
 #include <PubSubClient.h>
 #include <Wire.h>
+#include <avr/wdt.h>
 #include "Config.h"
 #include "Backdoor.h"
 
@@ -122,6 +123,9 @@ void callbackMQTT(char* topic, byte* payload, unsigned int length) {
 
 void setup()
 {
+    // Enable watchdog timer
+    wdt_enable(WDTO_8S);
+        
 	// Start ethernet
 	Ethernet.begin(mac, ip);
 	
@@ -169,6 +173,9 @@ void setup()
 
 void loop()
 {
+    // Reset watchdog
+    wdt_reset();
+        
     // are we still connected to MQTT
 	checkMQTT();
     
