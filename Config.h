@@ -130,19 +130,19 @@ byte server[] = { 192, 168, 0, 1 };
 #define CLIENT_ID "Gatekeeper"
 
 // Subscribe to topics
-#define S_UNLOCK        "nh/gk/Unlock"
-#define S_DOOR_BUTTON   "nh/gk/DoorButton"
+#define S_UNLOCK		"nh/gk/Unlock"
+#define S_DOOR_BUTTON           "nh/gk/DoorButton"
 
 // Publish Topics
 #define P_DOOR_STATE		"nh/gk/DoorState"
-#define P_KEYPAD			"nh/gk/Keypad"
+#define P_KEYPAD		"nh/gk/Keypad"
 #define P_DOOR_BUTTON		"nh/gk/DoorButton"
-#define P_RFID				"nh/gk/RFID"
+#define P_RFID			"nh/gk/RFID"
 #define P_LAST_MAN_STATE	"nh/gk/LastManState"
 
 // Status Topic, use to say we are alive or DEAD (will)
-#define S_STATUS "nh/status"
-#define P_STATUS "nh/status"
+#define S_STATUS "nh/status/req"
+#define P_STATUS "nh/status/res"
 #define STATUS_STRING "STATUS"
 #define RUNNING "Running: Gatekeeper"
 #define RESTART "Restart: Gatekeeper"
