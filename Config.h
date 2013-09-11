@@ -72,8 +72,8 @@ byte server[] = { 192, 168, 0, 1 };
 #define P_DOOR_BUTTON		"nh/gk/DoorButton"
 
 // Status Topic, use to say we are alive or DEAD (will)
-#define S_STATUS "nh/status"
-#define P_STATUS "nh/status"
+#define S_STATUS "nh/status/req"
+#define P_STATUS "nh/status/res"
 #define STATUS_STRING "STATUS"
 #define RUNNING "Running: WorkshopMQTT"
 #define RESTART "Restart: WorkshopMQTT"
