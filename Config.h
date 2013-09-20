@@ -82,7 +82,7 @@ byte server[] = { 192, 168, 0, 1 };
 #define ONE_WIRE_PWR	6
 #define ONE_WIRE_BUS	5
 #define ONE_WIRE_GND	4
-#define TEMPERATURE_PRECISION 9
+#define TEMPERATURE_PRECISION 11
 #define TEMPREATURE_TIMEOUT 150000	// one min (60000 * 1)
 unsigned long tempTimeout = 0;
 
