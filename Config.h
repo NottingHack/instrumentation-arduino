@@ -35,6 +35,8 @@ byte ip[]     = { 192, 168, 0, 19 };
 #define DOOR_BELL 8
 #define DOOR_BELL_LENGTH 400
 
+#define LDR_PIN A5
+#define LDR_TIMEOUT 15000
 
 // Door Bell Button
 // HIGH = PUSHED
@@ -69,7 +71,8 @@ byte server[] = { 192, 168, 0, 1 };
 #define S_DOOR_BUTTON    "nh/gk/DoorButton"
 
 // Publish Topics
-#define P_DOOR_BUTTON		"nh/gk/DoorButton"
+#define P_DOOR_BUTTON           "nh/gk/DoorButton"
+#define P_LIGHT_LEVEL           "nh/lightlevel/workshop"
 
 // Status Topic, use to say we are alive or DEAD (will)
 #define S_STATUS "nh/status/req"
@@ -85,6 +88,7 @@ byte server[] = { 192, 168, 0, 1 };
 #define TEMPERATURE_PRECISION 11
 #define TEMPREATURE_TIMEOUT 150000	// one min (60000 * 1)
 unsigned long tempTimeout = 0;
+unsigned long lightTimeout = 0;
 
 #define P_TEMP_STATUS	"nh/temp"
 

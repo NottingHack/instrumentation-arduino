@@ -74,6 +74,9 @@ int numberOfDevices;
 // array to store found address
 DeviceAddress tempAddress[10]; 
 
+//  LDR reading
+int lightSensorValue = 0;  
+
 /**************************************************** 
  * callbackMQTT
  * called when we get a new MQTT
@@ -238,6 +241,41 @@ void getTemps()
   
 } // end void getTemps()
 
+
+
+/**************************************************** 
+ getLightLevel
+ Get light level and publish to MQTT. Publishes 
+ regularly, and on sudden change
+ ****************************************************/
+void getLightLevel()
+{
+  int new_val = analogRead(LDR_PIN); 
+  char msg[10]="";
+  
+  if (
+       ((millis() - lightTimeout) > LDR_TIMEOUT)  ||  // Timeout expired, or..
+       (abs(new_val-lightSensorValue) > 100)          // sudden change in light level
+     )
+  {
+    lightTimeout = millis();
+    itoa(new_val, msg, 10);
+    
+#ifdef DEBUG_PRINT
+    Serial.print(F("Light Level sent: "));
+    Serial.println(new_val);
+#endif   
+    
+    // publish light level
+    client.publish(P_LIGHT_LEVEL, msg);
+    lightSensorValue = new_val;
+  }
+  
+
+  
+} // end void getLightLevel()
+
+
 void findSensors() 
 {
   // locate devices on the bus
@@ -383,7 +421,7 @@ void setup()
   findSensors();
     
   // Start MQTT and say we are alive
-  checkMQTT();
+  checkMQTT();   
   
   // let everything else settle
   delay(100);
@@ -407,6 +445,9 @@ void loop()
   
   // are we still connected to MQTT
   checkMQTT();
+  
+  // Get light level
+  getLightLevel();
   
 } // end void loop()
 
