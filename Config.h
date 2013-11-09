@@ -36,7 +36,7 @@ byte ip[]     = { 192, 168, 0, 19 };
 #define DOOR_BELL_LENGTH 400
 
 #define LDR_PIN A5
-#define LDR_TIMEOUT 15000
+#define LDR_TIMEOUT 150000
 
 // Door Bell Button
 // HIGH = PUSHED
