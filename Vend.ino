@@ -86,6 +86,8 @@
 #include <EEPROM.h>
 #include <LiquidCrystal_I2C.h>
 #include <Wire.h> 
+#include <avr/wdt.h>
+#include <avr/pgmspace.h>
 
 // The ethernet shield
 EtherShield es=EtherShield();
@@ -94,7 +96,7 @@ EtherShield es=EtherShield();
 static uint8_t mymac[6]; // Read from chip on nanode.
 static uint8_t myip[4] = {192,168,0,12};
 static uint8_t dstip[4] = {192,168,0,1};
- uint8_t dstmac[6]; 
+uint8_t dstmac[6]; 
 
 const char iphdr[] PROGMEM ={0x45,0,0,0x82,0,0,0x40,0,0x20}; // 0x82 is the total
 char udpPayload [48];
@@ -129,6 +131,9 @@ byte ret_button;
 short gDebug;
 byte rf_count;
 LiquidCrystal_I2C lcd(0x27,LCD_WIDTH,2);
+
+unsigned long last_net_msg;
+unsigned long last_ping;
 
 const char lcd_msg1[] PROGMEM = "Ready...";
 
@@ -290,6 +295,10 @@ void serial_write(struct MDB_Byte mdbb)
 
 void setup() 
 {  
+  wdt_reset (); 
+  last_net_msg = millis(); // prevent instant timeout
+  last_ping = millis();
+  
   lcd.init();   
   lcd.backlight();
   lcd.print(F("Initialising..."));
@@ -364,8 +373,9 @@ void setup()
   
   net_tx_debug(); // reqeust debug level
   
-  dbg_print("Init complete");  
+  dbg_println(F("Init complete"));  
   lcd.clear();
+  wdt_enable (WDTO_8S);
 } // end void setup()
 
 
@@ -381,6 +391,7 @@ void get_mac()
   
   while(!gotmac)
   {
+    
     plen = es.ES_enc28j60PacketReceive(BUFFER_SIZE, buf); 
     if (plen>0)
     {
@@ -448,12 +459,12 @@ void MDB_reset()
     card_state = NO_CARD;    
     
     digitalWrite(LED_ACTIVE, LOW); 
-    if (debug) dbg_println("Reset recv and checked, ACK sent");
+    if (debug) dbg_println(F("Reset recv and checked, ACK sent"));
 
   } else 
   {
     MDB_Write(sNAK);
-    if (debug) dbg_println("Reset recv, checksum invalid, NAK sent");            
+    if (debug) dbg_println(F("Reset recv, checksum invalid, NAK sent"));  
   }
 }
 
@@ -493,7 +504,7 @@ void MDB_setup()
       {
         // we are rCONTINUE
         // we still need min/max prices to change state
-        if (debug) dbg_println("Setup recv, our config sent");
+        if (debug) dbg_println(F("Setup recv, our config sent"));
       }
     } else 
     {
@@ -528,7 +539,7 @@ void MDB_setup()
       state = sDISABLED;
       digitalWrite(LED_ACTIVE, LOW);
 
-      if (debug) dbg_println("State Change: Disabled!");
+      if (debug) dbg_println(F("State Change: Disabled!"));
 
     } else 
     {
@@ -548,7 +559,7 @@ void MDB_poll()
   {
     // bad checksum
     MDB_Write(sNAK);
-    if (debug) dbg_println(">>NAK - bad checksum");
+    if (debug) dbg_println(F(">>NAK - bad checksum"));
     return;
   }
   
@@ -566,7 +577,7 @@ void MDB_poll()
     MDB_Write(CMD_OUT_OF_SEQUENCE);
     MDB_Write(CMD_OUT_OF_SEQUENCE_CHK);
 #ifdef DEBUG_PRINT_1
-    if (debug) dbg_println("Sent command out of sequence");
+    if (debug) dbg_println(F("Sent command out of sequence"));
 #endif
     return;
   }
@@ -577,7 +588,7 @@ void MDB_poll()
     transmitData(sendData, 1);
     justReset = false;  // told vmc 
 #ifdef DEBUG_PRINT_1
-    if (debug) dbg_println("Sent JUST_RESET");
+    if (debug) dbg_println(F("Sent JUST_RESET"));
 #endif
     return;
    }
@@ -593,14 +604,14 @@ void MDB_poll()
                     
      if (transmitData(sendData, sendLength) == rUNKNOWN) 
      {
-       if (debug) dbg_println("huh?");
+       if (debug) dbg_println(F("huh?"));
      } else 
      {
        // vend should work!
        //allowVend = 0;
      }
      
-     if (debug) dbg_println("allowed vend");
+     if (debug) dbg_println(F("allowed vend"));
      return;  
    } else if (allowVend == 2) 
    {
@@ -627,7 +638,7 @@ void MDB_poll()
      {
        state = sSESSION_IDLE;
 //#ifdef HUMAN_PRINT
-       if (debug) dbg_println("State change: Session Idle!");
+       if (debug) dbg_println(F("State change: Session Idle!"));
 //#endif
      }
             
@@ -662,7 +673,7 @@ void MDB_reader()
         digitalWrite(LED_ACTIVE, HIGH);
         memset(rfid_serial, 0, sizeof(rfid_serial));
 #ifdef HUMAN_PRINT
-        if (debug) dbg_println("State Change: Enabled!");
+        if (debug) dbg_println(F("State Change: Enabled!"));
 #endif
         lcd.clear();
         lcd.print(F("Ready..."));
@@ -692,7 +703,7 @@ void MDB_reader()
         digitalWrite(LED_ACTIVE, LOW);
         memset(rfid_serial, 0, sizeof(rfid_serial));
 
-        if (debug) dbg_println("State Change: Disabled! (VMC commanded)");
+        if (debug) dbg_println(F("State Change: Disabled! (VMC commanded)"));
         lcd.clear();
 
       } else 
@@ -762,11 +773,11 @@ void MDB_vend()
    case VEND_FAILURE:     
       MDB_Write(sACK);
       net_tx_vfail();
-      if (debug) dbg_print("Vend failure!");
+      if (debug) dbg_println(F("Vend failure!"));
       break;
       
     case SESSION_COMPLETE:
-      if (debug) dbg_print("Session complete");
+      if (debug) dbg_println(F("Session complete"));
       // build the response
       sendLength = 1;
       memset(sendData, 0, sizeof(sendData));
@@ -780,7 +791,7 @@ void MDB_vend()
       break;
       
     case CASH_SALE:
-      if (debug) dbg_print("Cash sale");
+      if (debug) dbg_println(F("Cash sale"));
        // four more bytes of data, plus checksum
       for (int i = 2; i < 6; i++) 
         get_MDB_Byte(&recvData[i]);
@@ -798,8 +809,8 @@ void MDB_vend()
     
       
     default:
-      if (debug) dbg_print("MDB_vend> Error");
-  }
+      if (debug) dbg_println(F("MDB_vend> Error"));
+  } 
 }
 
 void loop() 
@@ -813,6 +824,9 @@ void loop()
   
   while (1)
   {
+    if ((millis() - last_net_msg) < NET_RESET_TIMEOUT)
+      wdt_reset(); 
+    
     if ((UCSR0A & (1<<RXC0))) 
     {
       get_MDB_Byte(&recvData[0]);
@@ -822,37 +836,37 @@ void loop()
         switch (recvData[0].data) 
         {
           case RESET:
-            dbg_println("Reset");
+            dbg_println(F("Reset"));
             MDB_reset();
             break;
   
           case SETUP:
-            dbg_println("Setup");
+            dbg_println(F("Setup"));
             MDB_setup();        
             break;
             
           case POLL:
-            if (gDebug > 1) dbg_println("Poll");
+            if (gDebug > 1) dbg_println(F("Poll"));
             MDB_poll();
             break;
             
           case READER:
-            dbg_println("Reader");
+            dbg_println(F("Reader"));
             MDB_reader();
             break;          
            
           case VEND:
-            dbg_println("Vend");
+            dbg_println(F("Vend"));
             MDB_vend();          
             break;
                       
           case EXPANSION:
-            dbg_println("Expan");
+            dbg_println(F("Expan"));
             break;
             
           default:
             // should never get here once done programing all features
-            dbg_println ("Unknown Cmd recv");
+            dbg_println (F("Unknown Cmd recv"));
             break;
         } 
       } else // end if 
@@ -892,7 +906,7 @@ void loop()
     
     if (time_card_read && ((millis() - time_card_read) > SESSION_TIMEOUT))
     {
-      dbg_println("ses timeout");
+      dbg_println(F("ses timeout"));
       cancel_pressed();
       time_card_read = 0;     
     }
@@ -920,6 +934,9 @@ void loop()
      ret_button = false;
    }
    
+   
+   do_ping();
+   
   } // while(1)
 } // end void loop()
 
@@ -936,7 +953,7 @@ void cancel_pressed()
   // If vend has already be approved, then it's too late.
   if (allowVend == 1)
   {
-    dbg_println("To late to cancel vend");
+    dbg_println(F("To late to cancel vend"));
     return;    
   }
   
@@ -952,14 +969,26 @@ void cancel_pressed()
     memset(rfidReturn, 0, sizeof(rfidReturn));
   } else
   {
-    dbg_println("Nothing to cancel");
+    dbg_println(F("Nothing to cancel"));
   }
 }
+
+void do_ping()
+{
+  if (((millis() - last_net_msg) > PING_INTERVAL) &&
+      ((millis() - last_ping)    > PING_INTERVAL))
+  {
+    last_ping = millis();
+    net_tx_ping();
+  }
+}
+
 
 void net_loop()
 {
   int i;
   uint16_t plen, dat_p;
+  char dbgbuf[15];
 
   memset(buf, 0, BUFFER_SIZE);
   plen = es.ES_enc28j60PacketReceive(BUFFER_SIZE, buf);
@@ -977,6 +1006,14 @@ void net_loop()
         memcpy(net_msg.msgtype, buf+UDP_DATA_P, 4);
         memcpy(net_msg.payload, buf+UDP_DATA_P+5, sizeof(net_msg.payload));  
         
+     /*   if (debug) 
+        {
+          sprintf(dbgbuf, "got: [%s]",net_msg.msgtype);
+          dbg_print(dbgbuf);
+        } */
+        
+        last_net_msg = millis();
+        
         if (!(strncmp((char*)net_msg.msgtype, "GRNT", 4)))
           net_rx_grant(net_msg.payload);
         
@@ -993,7 +1030,7 @@ void net_loop()
           net_rx_set_debug(net_msg.payload);          
           
         else if (!(strncmp((char*)net_msg.msgtype, "DISP", 4))) // DISPlay
-          net_rx_display(net_msg.payload);                
+          net_rx_display(net_msg.payload);                 
       }   
     }
   }
@@ -1011,7 +1048,7 @@ void net_rx_grant(byte *payload)
   {
     card_state = NO_CARD;
     memset(rfid_serial, 0, sizeof(rfid_serial));
-    dbg_println("tID not found");
+    dbg_println(F("tID not found"));
     return;
   }
   
@@ -1021,7 +1058,7 @@ void net_rx_grant(byte *payload)
     // hmmm, the card read doesn't match the one that's just been accepted.
     card_state = NO_CARD;
     memset(rfid_serial, 0, sizeof(rfid_serial));
-    dbg_println("Card serial mismatch");
+    dbg_println(F("Card serial mismatch"));
     return;
   }
     
@@ -1037,7 +1074,7 @@ void net_rx_deny(byte *payload)
   // Not too bothered about the payload here - either the card number in the message matches, in which case
   // we want to decline the card, or it doesn't and something's gone wrong, so we want to decline the card...
   
-  dbg_println("Card declined");
+  dbg_println(F("Card declined"));
   memset(rfid_serial, 0, sizeof(rfid_serial));
   card_state = NO_CARD; 
 } 
@@ -1055,7 +1092,7 @@ void net_rx_vend_ok(byte *payload)
   {
     // invalid message
     allowVend = 2;
-    dbg_println("Vend denied (1)");
+    dbg_println(F("Vend denied (1)"));
     return;
   }
   
@@ -1063,7 +1100,7 @@ void net_rx_vend_ok(byte *payload)
   if (strlen(rfid_serial) <= 1)
   {
     allowVend = 2;
-    dbg_println("Card details lost!");
+    dbg_println(F("Card details lost!"));
     return;
   }
   
@@ -1071,7 +1108,7 @@ void net_rx_vend_ok(byte *payload)
   if (strncmp(rfid_serial, (char*)payload, strlen(rfid_serial)))
   {
     allowVend = 2;
-    dbg_println("Card mismatch");
+    dbg_println(F("Card mismatch"));
     return;
   }
     
@@ -1079,13 +1116,13 @@ void net_rx_vend_ok(byte *payload)
   if (strncmp(tran_id, (char*)payload+i, strlen(tran_id)))
   {
     allowVend = 2;
-    dbg_println("tran_id mismatch");
+    dbg_println(F("tran_id mismatch"));
     return;
   }    
     
   // To get here, all must be good - so allow vend
   allowVend = 1;
-  dbg_println("Allowing vend.");
+  dbg_println(F("Allowing vend."));
 } 
 
 void net_rx_vend_deny(byte *payload)
@@ -1093,7 +1130,7 @@ void net_rx_vend_deny(byte *payload)
   // Not too bothered about the payload here - either the card number in the message matches, in which case
   // we want to decline the card, or it doesn't and something's gone wrong, so we want to decline the card...
   
-  dbg_println("Card declined (2)");
+  dbg_println(F("Card declined (2)"));
   allowVend = 2;
 } 
 
@@ -1130,11 +1167,11 @@ void net_rx_set_debug(byte *payload)
   {
     // update eeprom
     EEPROM.write(EEPROM_DEBUG, new_dlvl);
-    dbg_println("EEPROM Updated");
+    dbg_println(F("EEPROM Updated"));
   }
     
   gDebug = new_dlvl;  
-  dbg_println("set debug");
+  dbg_println(F("set debug"));
 //  gDebug = 2;
 } 
 
@@ -1188,11 +1225,11 @@ void net_rx_display(byte *payload)
   lcd.print(ln2);  
 }
 
-
 // Auth card - on card first being presented, prior to telling the vending machine
 void net_tx_auth()
 {
   struct net_msg_t msg;
+  memset(&msg, 0, sizeof(msg));
   memcpy(msg.msgtype,"AUTH", 4);
   strncpy((char*)msg.payload, rfid_serial, sizeof(rfid_serial));
   net_send(&msg);  
@@ -1202,6 +1239,7 @@ void net_tx_auth()
 void net_tx_vreq(int amount_scaled)
 {
   struct net_msg_t msg;
+  memset(&msg, 0, sizeof(msg));
   memcpy(msg.msgtype,"VREQ", 4);
   sprintf((char*)msg.payload, "%s:%s:%d", rfid_serial, tran_id, amount_scaled);
   net_send(&msg);  
@@ -1211,6 +1249,7 @@ void net_tx_vreq(int amount_scaled)
 void net_tx_vsuc(char *pos)
 {
   struct net_msg_t msg;
+  memset(&msg, 0, sizeof(msg));
   memcpy(msg.msgtype,"VSUC", 4);
   sprintf((char*)msg.payload, "%s:%s:%s", rfid_serial, tran_id, pos);
   net_send(&msg);  
@@ -1220,6 +1259,7 @@ void net_tx_vsuc(char *pos)
 void net_tx_vfail()
 {
   struct net_msg_t msg;
+  memset(&msg, 0, sizeof(msg));
   memcpy(msg.msgtype,"VFAL", 4);
   sprintf((char*)msg.payload, "%s:%s", rfid_serial, tran_id);
   net_send(&msg);  
@@ -1229,6 +1269,7 @@ void net_tx_vfail()
 void net_tx_vcan()
 {
   struct net_msg_t msg;
+  memset(&msg, 0, sizeof(msg));
   memcpy(msg.msgtype,"VCAN", 4);
   sprintf((char*)msg.payload, "%s:%s", rfid_serial, tran_id);
   net_send(&msg);  
@@ -1238,9 +1279,42 @@ void net_tx_vcan()
 void net_tx_cash(int amount_scaled, char *pos)
 {
   struct net_msg_t msg;
+  memset(&msg, 0, sizeof(msg));
   memcpy(msg.msgtype,"CASH", 4);
   sprintf((char*)msg.payload, "%d:%s", amount_scaled, pos);
   net_send(&msg);  
+}
+
+// Send ping request
+void net_tx_ping()
+{
+  struct net_msg_t msg;
+  memset(&msg, 0, sizeof(msg));
+  memcpy(msg.msgtype,"PING", 4);
+  strncpy((char*)msg.payload, "1", 1);
+  net_send(&msg);  
+}
+
+void dbg_println(const __FlashStringHelper *n)
+{
+  uint8_t c;
+  byte *payload;
+  
+//if (gDebug > 0)
+  if (1==1)
+  {
+    char *pn = (char*)n;
+    struct net_msg_t msg;
+    memset(&msg, 0, sizeof(msg));
+    payload = msg.payload;
+    
+    memcpy(msg.msgtype,"INFO", 4);
+    
+    while ((c = pgm_read_byte_near(pn++)) != 0)
+      *(payload++) = c;
+      
+    net_send(&msg);
+  }
 }
 
 void dbg_println(char* str)
@@ -1248,7 +1322,9 @@ void dbg_println(char* str)
   //todo.
   dbg_print(str);
 }
-  
+
+
+
 void dbg_print(char* str)
 {
   if (gDebug > 0)
@@ -1335,7 +1411,7 @@ void net_send(struct net_msg_t *msg)
  ****************************************************/
 bool pollRFID()
 {
-   if (gDebug > 1) dbg_println("Poll R");
+   if (gDebug > 1) dbg_println(F("Poll R"));
   // quickly send query to read cards serial
   for (int i=0; i < 8; i++)
     rfid_reader.write(query[i]);
@@ -1369,7 +1445,7 @@ bool pollRFID()
   } else if (rfidReturn[3] == 1 && rfidReturn[4] != 131 && (millis() - cardTimeOut) > CARD_TIMEOUT) 
   {
     cardTimeOut = millis();
-    dbg_println("Unknown Card Type");
+    dbg_println(F("Unknown Card Type"));
   //  Serial.println("Unknown Card Type");
   } 
   return false;
@@ -1398,7 +1474,7 @@ void soft_serial_flush()
 {
   if (rfid_reader.available() > 0)
   {
-    dbg_println("Flushing RFID serial buffer");
+    dbg_println(F("Flushing RFID serial buffer"));
     while(rfid_reader.available() > 0)
       rfid_reader.read();
       

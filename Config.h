@@ -90,6 +90,11 @@ unsigned long cardTimeOut = 0;
 
 #define EEPROM_DEBUG 0
 
+#define PING_INTERVAL (400 * 60)
+
+// Maximum time between received network messages before resetting
+#define NET_RESET_TIMEOUT (400 * 120)
+
 byte state;
 // flags. most of these are used to change the response to the poll command
 byte allowACK; // normally we respond with an ACK to a poll, some commands must not until they are ready!
