@@ -787,6 +787,8 @@ void MDB_vend()
       memset(tran_id, 0, sizeof(tran_id));       
       card_state = NO_CARD;
       state = sENABLED;
+      lcd.clear();
+      lcd.print(F("Ready..."));
       digitalWrite(LED_ACTIVE, HIGH);  
       break;
       
