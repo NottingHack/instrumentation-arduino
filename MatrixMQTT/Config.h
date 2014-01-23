@@ -124,6 +124,7 @@ byte server[] = { 192, 168, 0, 1 };
 #define S_XRF       "nh/xrf/tx/#"
 #define S_XRF_MASK  "nh/xrf/tx/"
 #define S_DOOR_BUTTON    "nh/gk/DoorButton"
+#define S_LAST_MAN_STATE	"nh/gk/LastManState"
 
 
 // Publish Topics
@@ -140,6 +141,9 @@ byte server[] = { 192, 168, 0, 1 };
 #define RUNNING "Running: MatrixMQTT"
 #define RESTART "Restart: MatrixMQTT"
 
+#define LED_PIN 7
+#define SPACE_OPEN "First In"
+#define SPACE_CLOSED "Last Out"
 
 
 // temp sensor configs

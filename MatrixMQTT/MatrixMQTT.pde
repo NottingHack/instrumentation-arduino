@@ -351,7 +351,14 @@ void callbackMQTT(char* topic, byte* payload, int length) {
         } else if (strncmp(DOOR_REAR, (char*)payload, strlen(DOOR_REAR)) == 0) {
 			doorButtonState = DOOR_STATE_REAR;
 		} // end if
-    } // end if else
+    } else if (!strcmp(S_LAST_MAN_STATE, topic)) {
+        // check for door state messages
+        if (strncmp(SPACE_CLOSED, (char*)payload, strlen(SPACE_CLOSED)) == 0) {
+            digitalWrite(LED_PIN, LOW);
+        } else if (strncmp(SPACE_OPEN, (char*)payload, strlen(SPACE_OPEN)) == 0) {
+            digitalWrite(LED_PIN, HIGH);
+		} // end if
+    }// end if else
   
 } // end void callback(char* topic, byte* payload,int length)
 
@@ -370,6 +377,7 @@ void checkMQTT() {
             client.subscribe(S_MAIL);
             client.subscribe(S_XRF);
             client.subscribe(S_DOOR_BUTTON);
+            client.subscribe(S_LAST_MAN_STATE);
 #ifdef DEBUG_PRINT
 			Serial.println("MQTT Reconect");
 #endif
@@ -706,6 +714,8 @@ void setup()
     pinMode(XRF_POWER_PIN, OUTPUT);
 	pinMode(DOOR_BUTTON, INPUT);
 	digitalWrite(DOOR_BUTTON, HIGH);
+	pinMode(LED_PIN, OUTPUT);
+	digitalWrite(LED_PIN, LOW);
 
 	// Set default output's
 	digitalWrite(GROUND, LOW);
@@ -756,6 +766,7 @@ void setup()
         client.subscribe(S_TWITTER);
         client.subscribe(S_MAIL);
         client.subscribe(S_XRF);
+        client.subscribe(S_LAST_MAN_STATE);
 	}
 	// setupToggle();
     
