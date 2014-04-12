@@ -51,6 +51,7 @@
 #include <PubSubClient.h>
 #include <MFRC522.h>
 #include <EEPROM.h>
+#include <avr/wdt.h> 
 #include "Config.h"
 
 #define LCD_WIDTH 20
@@ -176,6 +177,7 @@ void checkMQTT()
 
 void setup()
 {
+  wdt_disable();
   Serial.begin(9600);
   dbg_println(F("Start!"));
 
@@ -267,15 +269,32 @@ void serial_menu()
       serial_line[i++] = c;
     }
   }
-  
 }
 
 void serial_process(char *cmd)
 {
   if (serial_state == SS_MAIN_MENU)
     serial_main_menu(cmd);
-  
-  
+  else if (serial_state == SS_SET_MAC)
+  {
+    serial_set_mac(cmd);  
+    serial_main_menu("0");
+  }
+  else if (serial_state == SS_SET_IP)
+  {
+    serial_set_ip(cmd);  
+    serial_main_menu("0");
+  }
+  else if (serial_state == SS_SET_NAME)
+  {
+    serial_set_name(cmd);  
+    serial_main_menu("0");
+  }
+  else if (serial_state == SS_SET_TOPIC)
+  {
+    serial_set_topic(cmd);  
+    serial_main_menu("0");
+  }
 }
 
 void serial_main_menu(char *cmd)
@@ -287,10 +306,33 @@ void serial_main_menu(char *cmd)
     case 1: // "[ 1 ] Show current settings"
       serial_show_settings();
       Serial.println();
-      serial_show_main_menu();
+      serial_show_main_menu();      
       break;
+      
+    case 2: // "[ 2 ] Set MAC address"
+      serial_set_mac(NULL);
+      break;
+      
+    case 3: // "[ 3 ] Set IP address"
+      serial_set_ip(NULL);
+      break;
+      
+    case 4: // "[ 4 ] Set name"
+      serial_set_name(NULL);
+      break;    
     
+    case 5: // "[ 5 ] Set base topic"
+      serial_set_topic(NULL);
+      break;    
+      
+    case 6:
+      Serial.println("Reboot....");
+      wdt_enable(WDTO_2S);
+      while(1);
+      break;
+      
     default:
+      Serial.println();
       serial_show_main_menu();
   }
 }
@@ -305,15 +347,13 @@ void serial_show_main_menu()
   Serial.println(F("[ 3 ] Set IP address"));
   Serial.println(F("[ 4 ] Set name"));
   Serial.println(F("[ 5 ] Set base topic"));
-  Serial.println(F("[ 6 ] Restore defaults"));
-  Serial.println(F("[ 7 ] Reset/reboot"));
+  Serial.println(F("[ 6 ] Reset/reboot"));
   Serial.print(F("Enter selection: "));  
 }
 
 void serial_show_settings()
 {
   char buf[18];
-  
 
   Serial.println("\n");
   Serial.println(F("Current settings:"));
@@ -331,10 +371,154 @@ void serial_show_settings()
   
   Serial.print(F("Base topic : "));
   Serial.println(base_topic);
-  
-  
 }
 
+void serial_set_mac(char *cmd)
+{
+  serial_state = SS_SET_MAC;
+  byte mac_addr[6];
+  int c;
+  
+  if (cmd == NULL)
+  {
+    Serial.print(F("\nEnter MAC address:"));
+  } else
+  {
+    // MAC address entered - validate
+    c = sscanf(cmd, "%x:%x:%x:%x:%x:%x", &mac_addr[0], &mac_addr[1], &mac_addr[2], &mac_addr[3], &mac_addr[4], &mac_addr[5]);
+    if (c == 6)
+    {
+      Serial.println(F("\nOk - Saving address"));
+      set_mac(mac_addr);
+    } else
+    {
+      Serial.println(F("\nInvalid MAC address"));
+    }
+    // Return to main menu
+    serial_state = SS_MAIN_MENU;
+  }
+  return;
+}
+
+void serial_set_ip(char *cmd)
+{
+  serial_state = SS_SET_IP;
+  int ip_addr[4];
+  int c;
+  byte ip_good = true;
+  
+  if (cmd == NULL)
+  {
+    Serial.print(F("\nEnter IP address:"));
+  } else
+  {
+    // IP address entered - validate
+    c = sscanf(cmd, "%d.%d.%d.%d", &ip_addr[0], &ip_addr[1], &ip_addr[2], &ip_addr[3]);
+    if (c != 4)
+    {
+      ip_good = false;
+    } else
+    {
+      for (int i=0; i < 4; i++)
+        if (ip_addr[i] < 0 || ip_addr[i] > 255)
+          ip_good = false;
+    }
+      
+    if (ip_good)
+    {     
+      Serial.println(F("\nOk - Saving address"));
+      set_ip(ip_addr);
+    } else
+    {
+      Serial.println(F("\nInvalid IP address"));
+    }
+    // Return to main menu
+    serial_state = SS_MAIN_MENU;
+  }
+  return;
+}
+
+void serial_set_name(char *cmd)
+{
+  serial_state = SS_SET_NAME;
+  
+  if (cmd == NULL)
+  {
+    Serial.print(F("\nEnter device name:"));
+  } else
+  {
+    if (strlen(cmd) > 2)
+    {    
+      Serial.println(F("\nOk - Saving name"));
+      set_name(cmd);
+    } else
+    {
+      Serial.println(F("\nError: too short"));
+    }
+    // Return to main menu
+    serial_state = SS_MAIN_MENU;
+  }
+  return;
+}
+
+void serial_set_topic(char *cmd)
+{
+  serial_state = SS_SET_TOPIC;
+  
+  if (cmd == NULL)
+  {
+    Serial.print(F("\nEnter base topic:"));
+  } else
+  {
+    if (strlen(cmd) > 2)
+    {    
+      Serial.println(F("\nOk - Saving topic"));
+      set_topic(cmd);
+    } else
+    {
+      Serial.println(F("\nError: too short"));
+    }
+    // Return to main menu
+    serial_state = SS_MAIN_MENU;
+  }
+  return;
+}
+
+void set_mac(byte *mac_addr)
+{
+  for (int i = 0; i < 6; i++)
+  {
+    EEPROM.write(EEPROM_MAC+i, mac_addr[i]);
+    mac[i] = mac_addr[i];
+  }
+}
+
+void set_ip(int *ip_addr)
+{
+  for (int i = 0; i < 4; i++)
+  {
+    EEPROM.write(EEPROM_IP+i, ip_addr[i]);
+    ip[i] = ip_addr[i];
+  }
+}
+
+void set_name(char *new_name)
+{
+  for (int i = 0; i < 20; i++)
+  {
+    EEPROM.write(EEPROM_NAME+i, new_name[i]);
+    dev_name[i] = new_name[i];
+  }
+}
+
+void set_topic(char *new_topic)
+{
+  for (int i = 0; i < 40; i++)
+  {
+    EEPROM.write(EEPROM_BASE_TOPIC+i, new_topic[i]);
+    base_topic[i] = new_topic[i];
+  }
+}
 void poll_rfid()
 {
   byte *pCard_number = (byte*)&card_number;

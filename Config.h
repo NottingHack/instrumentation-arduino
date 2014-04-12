@@ -81,5 +81,9 @@ byte server[] = { 192, 168, 0, 1 };
 
 enum serial_state_t
 {
-  SS_MAIN_MENU
+  SS_MAIN_MENU,
+  SS_SET_MAC,
+  SS_SET_IP,
+  SS_SET_NAME,
+  SS_SET_TOPIC
 };
