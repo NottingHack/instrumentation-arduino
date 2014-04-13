@@ -45,9 +45,9 @@
 
 // Locations in EEPROM of various settings
 #define EEPROM_MAC           0 //  6 bytes
-#define EEPROM_IP            6 //  4 bytes
-#define EEPROM_BASE_TOPIC   10 // 40 bytes
-#define EEPROM_NAME         50 // 20 bytes
+#define EEPROM_IP            6 //  4 bytes 
+#define EEPROM_BASE_TOPIC   10 // 40 bytes   e.g. "nh/tools/"
+#define EEPROM_NAME         50 // 20 bytes   e.g. "laser"
 
 // IP of MQTT server
 byte server[] = { 192, 168, 0, 1 };
@@ -64,7 +64,7 @@ byte server[] = { 192, 168, 0, 1 };
 #define P_STATUS "nh/status/res"
 #define STATUS_STRING "STATUS"
 #define RUNNING "Running: note_acceptor"
-#define RESTART "Restart: note_acceptor"
+//#define RESTART "Restart: note_acceptor"
 
 // Client id for connecting to MQTT
 #define CLIENT_ID "note_acceptor"
