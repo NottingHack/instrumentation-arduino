@@ -47,7 +47,7 @@
  */
 
 #include <Wire.h>
-#include <LiquidCrystal_I2C.h>
+//#include <LiquidCrystal_I2C.h>
 #include <SPI.h>
 #include <Ethernet.h>
 #include <PubSubClient.h>
@@ -67,10 +67,11 @@ void dbg_println(const char *msg);
 
 EthernetClient ethClient;
 PubSubClient client(server, MQTT_PORT, callbackMQTT, ethClient);
-LiquidCrystal_I2C lcd(0x27,20,4);  // 20x4 display at address 0x27
+//LiquidCrystal_I2C lcd(0x27,20,4);  // 20x4 display at address 0x27
 MFRC522 rfid_reader(PIN_RFID_SS, PIN_RFID_RST);
 
 serial_state_t serial_state;
+dev_state_t    dev_state;
 
 char pmsg[DMSG];
 unsigned long card_number;
@@ -84,7 +85,10 @@ char dev_name [21];
 byte mac[6];
 byte ip[4];
 
-char tool_topic[20+40+1];
+unsigned long _tool_start_time;
+unsigned long _auth_start;
+
+char tool_topic[20+40+2];
 
 
 /**************************************************** 
@@ -94,8 +98,42 @@ char tool_topic[20+40+1];
  ****************************************************/
 void callbackMQTT(char* topic, byte* payload, unsigned int length)
 {
+  char buf [30];
+  
   if (length >= sizeof(mqtt_rx_buf))
     return;
+    
+  // Respond to status requests
+  else if (!strcmp(topic, S_STATUS))
+  {
+    if (!strncmp(STATUS_STRING, (char*)payload, strlen(STATUS_STRING)))
+    {
+      dbg_println(F("Status Request"));
+      sprintf(buf, "Running: %s", dev_name);      
+      client.publish(P_STATUS, buf);
+    }
+  }    
+
+  // Messages to the tools topic
+  if (!strncmp(topic, tool_topic, strlen(tool_topic)))
+  {
+    // get action
+    if (strlen(topic) < strlen(tool_topic)+3)
+      return;
+    strncpy(buf, topic+strlen(tool_topic)+1, sizeof(buf));
+    buf[sizeof(buf)-1] = '\0';
+    
+    if (strcmp(buf, "GRANT"))
+    {
+      // Enable tool!
+      set_dev_state(DEV_ACTIVE);
+    } 
+
+     
+    
+  }
+    
+    
 
 } // end void callback(char* topic, byte* payload,int length)
 
@@ -145,12 +183,12 @@ void mqtt_rx_display(char *payload)
   }
 
   /* Output 1st line */
-  lcd.setCursor(0, 2);
-  lcd.print(ln1); 
+ // lcd.setCursor(0, 2);
+  //lcd.print(ln1); 
 
   /* Output 2nd line */
-  lcd.setCursor(0, 3);
-  lcd.print(ln2);
+//  lcd.setCursor(0, 3);
+ // lcd.print(ln2);
 }
 
 /**************************************************** 
@@ -159,7 +197,8 @@ void mqtt_rx_display(char *payload)
  *
  ****************************************************/
 void checkMQTT() 
-{
+{  
+  char *pToolTopic;
   if (!client.connected()) 
   {
     if (client.connect(CLIENT_ID)) 
@@ -170,11 +209,22 @@ void checkMQTT()
       sprintf(buf, "Restart: %s", dev_name);
 //      set_state(STATE_READY);
       client.publish(P_STATUS, buf);
+      
+      // Subscribe to <tool_topic>/#, without having to declare another large buffer just for this.
+      pToolTopic = tool_topic + strlen(tool_topic);
+      *pToolTopic     = '/';
+      *(pToolTopic+1) = '#';
+      *(pToolTopic+2) = '\0';
+      Serial.println(tool_topic);
       client.subscribe(tool_topic);
-      client.subscribe(S_STATUS);
+      *pToolTopic = '\0';
+
+      Serial.println(S_STATUS);
+      client.subscribe(S_STATUS);      
+      set_dev_state(DEV_IDLE);
     } else
     {
-    //  set_state(STATE_CONN_WAIT);
+      set_dev_state(DEV_NO_CONN);
     }
   }
 }
@@ -184,19 +234,24 @@ void setup()
   wdt_disable();
   Serial.begin(9600);
   dbg_println(F("Start!"));
-
   serial_state = SS_MAIN_MENU;
+  set_dev_state(DEV_NO_CONN);
+
+  pinMode(PIN_RELAY, OUTPUT);
+  pinMode(PIN_INDUCT_BUTTON, INPUT);
+  digitalWrite(PIN_RELAY, LOW);
+  digitalWrite(PIN_INDUCT_BUTTON, HIGH);
 
   dbg_println(F("Init LCD"));
-  lcd.init();
-  lcd.backlight();
-  lcd.home();
+ // lcd.init();
+//  lcd.backlight();
+//  lcd.home();
 //  lcd.print(F("Nottinghack note    "));
-  lcd.setCursor(0, 1);
+ // lcd.setCursor(0, 1);
 //  lcd.print(F("acceptor v0.01....  "));
 
   dbg_println(F("Init SPI"));
- // SPI.begin();
+  SPI.begin();
   
   // Read settings from eeprom
   for (int i = 0; i < 6; i++)
@@ -213,21 +268,23 @@ void setup()
     dev_name[i] = EEPROM.read(EEPROM_NAME+i);
   dev_name[20] = '\0';
   
-  
+  sprintf(tool_topic, "%s/%s", base_topic, dev_name);
 
   dbg_println(F("Start Ethernet"));
-//  Ethernet.begin(mac, ip);
+  Ethernet.begin(mac, ip);
 
   dbg_println(F("Init RFID"));
  // rfid_reader.PCD_Init();
 
   // Start MQTT and say we are alive
   dbg_println(F("Check MQTT"));
- // checkMQTT();
+  checkMQTT();
 
-  //delay(100);
+  delay(100);
 
   dbg_println(F("Setup done..."));
+  Serial.println();
+  serial_show_main_menu();  
 } // end void setup()
 
 
@@ -236,10 +293,10 @@ void loop()
 {
   // Poll MQTT
   // should cause callback if there's a new message
- // client.loop();
+  client.loop();
 
   // are we still connected to MQTT
- // checkMQTT();
+  checkMQTT();
 
   // Check for RFID card
   //poll_rfid();
@@ -251,18 +308,91 @@ void loop()
 } // end void loop()
 
 
+boolean set_dev_state(dev_state_t new_state)
+{
+  boolean ret = true;
+  
+  switch (new_state)
+  {
+    case DEV_NO_CONN:
+      if ((dev_state == DEV_IDLE) || (dev_state == DEV_AUTH_WAIT))
+        dev_state =  DEV_NO_CONN;
+      else
+        ret = false;
+      break;
+      
+    case DEV_IDLE:
+      // Any state can change to idle
+      digitalWrite(PIN_RELAY, LOW);
+      dev_state =  DEV_IDLE;
+      break;
+      
+    case DEV_AUTH_WAIT:
+      if (dev_state == DEV_IDLE)
+      {
+        dev_state =  DEV_AUTH_WAIT;
+        _auth_start = millis();
+      }
+      else
+        ret = false;
+      break;
+      
+    case DEV_ACTIVE:
+      if (dev_state == DEV_AUTH_WAIT)
+      {
+        dev_state = DEV_ACTIVE;
+        digitalWrite(PIN_RELAY, HIGH);
+        _tool_start_time = millis();
+      }
+      else
+        ret = false;
+      break;
+      
+    default:
+      ret = false;
+      break;
+  }
+  
+  return ret;
+}
+
 void poll_rfid()
 {
+  MFRC522::Uid card;	
+  static unsigned long last_poll = 0;
+  static unsigned long authd_card_last_seen = 0; // How long ago was the card used to active the tool last seen
+  boolean authd_card_present = false;
+  
   byte *pCard_number = (byte*)&card_number;
 
-  //if (state != STATE_READY)
-  //  return;
-
-  if (!rfid_reader.PICC_IsNewCardPresent())
+  if ((dev_state != DEV_IDLE) && (dev_state == DEV_ACTIVE))
     return;
+   
+  
+  // Only look for a new card if IDLE; if active, look for the presence of the same card.
+  if (dev_state == DEV_IDLE)
+  {
+    authd_card_present = false;
+  } else /* active */
+  {
+    if (millis() - last_poll < ACTIVE_POLL_FREQ)
+      return;
+    else
+      last_poll = millis();
+  }
+  
+  if (!authd_card_present)
+  {
+    /* todo: timeout stuff */
+    if (!rfid_reader.PICC_IsNewCardPresent())
+      return;
+  }    
 
+/*
   if (!rfid_reader.PICC_ReadCardSerial())
     return;
+    
+  memcpy(&card, &rfid_reader.uid, sizeof(card));
 
   // Convert 4x bytes received to long (4 bytes)
   for (int i = 3; i >= 0; i--) 
@@ -271,8 +401,9 @@ void poll_rfid()
   ultoa(card_number, rfid_serial, 10);
 
   sprintf(pmsg, "AUTH:%s", rfid_serial);
-  client.publish(P_NOTE_TX, pmsg);
+ // client.publish(P_NOTE_TX, pmsg);
  // set_state(STATE_AUTH_WAIT);
+ */
 }
 
 void dbg_println(const __FlashStringHelper *n)
@@ -289,12 +420,12 @@ void dbg_println(const __FlashStringHelper *n)
     *(payload++) = c;
 
 #ifdef DEBUG_MQTT
-  client.publish(P_NOTE_TX, pmsg);
+//  client.publish(P_NOTE_TX, pmsg);
 #endif
 
-#ifdef DEBUG_SERIAL
+
   Serial.println(pmsg+sizeof("INFO"));
-#endif
+
 }
 
 void dbg_println(const char *msg)
@@ -308,8 +439,8 @@ void dbg_println(const char *msg)
 
 
 
-#ifdef DEBUG_SERIAL
+
   Serial.println(pmsg+sizeof("INFO"));
-#endif
+
 }
 
