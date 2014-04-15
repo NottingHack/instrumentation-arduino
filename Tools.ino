@@ -88,8 +88,10 @@ byte ip[4];
 unsigned long _tool_start_time;
 unsigned long _auth_start;
 
-char tool_topic[20+40+2];
+char tool_topic[20+40+10+4]; // name + base_topic + action + delimiters + terminator
 
+
+/** TODO: complete message. Track time. SIGNOFF action */
 
 /**************************************************** 
  * callbackMQTT
@@ -199,6 +201,8 @@ void mqtt_rx_display(char *payload)
 void checkMQTT() 
 {  
   char *pToolTopic;
+  static boolean first_connect = true;
+  
   if (!client.connected()) 
   {
     if (client.connect(CLIENT_ID)) 
@@ -207,7 +211,6 @@ void checkMQTT()
       
       dbg_println(F("Connected to MQTT"));
       sprintf(buf, "Restart: %s", dev_name);
-//      set_state(STATE_READY);
       client.publish(P_STATUS, buf);
       
       // Subscribe to <tool_topic>/#, without having to declare another large buffer just for this.
@@ -220,10 +223,26 @@ void checkMQTT()
       *pToolTopic = '\0';
 
       Serial.println(S_STATUS);
-      client.subscribe(S_STATUS);      
-      set_dev_state(DEV_IDLE);
+      client.subscribe(S_STATUS); 
+   
+      // Update state - but be sure not to deactive tool if connection was lost/restored whilst in use
+      if (first_connect)
+      {
+        send_action("RESET", "BOOT");
+        first_connect = false;   
+        set_dev_state(DEV_IDLE);        
+      }
+      else if (dev_state == DEV_ACTIVE)
+      {
+        send_action("RESET", "ACTIVE");
+      } else
+      {
+        send_action("RESET", "IDLE");
+        set_dev_state(DEV_IDLE);
+      }
     } else
     {
+      // If state is ACTIVE, this won't have any effect
       set_dev_state(DEV_NO_CONN);
     }
   }
@@ -283,6 +302,7 @@ void setup()
   delay(100);
 
   dbg_println(F("Setup done..."));
+
   Serial.println();
   serial_show_main_menu();  
 } // end void setup()
@@ -299,7 +319,7 @@ void loop()
   checkMQTT();
 
   // Check for RFID card
-  //poll_rfid();
+  poll_rfid();
   
   // Do serial menu
   serial_menu();
@@ -359,51 +379,112 @@ boolean set_dev_state(dev_state_t new_state)
 void poll_rfid()
 {
   MFRC522::Uid card;	
-  static unsigned long last_poll = 0;
   static unsigned long authd_card_last_seen = 0; // How long ago was the card used to active the tool last seen
-  boolean authd_card_present = false;
+  static boolean authd_card_present = false;
   
   byte *pCard_number = (byte*)&card_number;
 
   if ((dev_state != DEV_IDLE) && (dev_state == DEV_ACTIVE))
     return;
-   
-  
-  // Only look for a new card if IDLE; if active, look for the presence of the same card.
+    
+  // If idle, poll for any/new card
   if (dev_state == DEV_IDLE)
   {
+    int tt_len; // tool topic string length
     authd_card_present = false;
-  } else /* active */
-  {
-    if (millis() - last_poll < ACTIVE_POLL_FREQ)
-      return;
-    else
-      last_poll = millis();
-  }
-  
-  if (!authd_card_present)
-  {
-    /* todo: timeout stuff */
+    memset(&card, 0, sizeof(card));
+    
     if (!rfid_reader.PICC_IsNewCardPresent())
       return;
-  }    
+  
+    if (!rfid_reader.PICC_ReadCardSerial())
+      return;      
 
-/*
-  if (!rfid_reader.PICC_ReadCardSerial())
-    return;
+    // Convert 4x bytes received to long (4 bytes)
+    for (int i = 3; i >= 0; i--) 
+      *(pCard_number++) = rfid_reader.uid.uidByte[i];
+  
+    // Send AUTH request to server
+    ultoa(card_number, rfid_serial, 10);
+    sprintf(pmsg, "%s", rfid_serial);    
+    send_action("AUTH", pmsg);
+
+    // Keep a copy of the card ID we're auth'ing
+    memcpy(&card, &rfid_reader.uid, sizeof(card));
     
-  memcpy(&card, &rfid_reader.uid, sizeof(card));
+    authd_card_last_seen = millis();
+    authd_card_present = true;
+    
+    set_dev_state(DEV_AUTH_WAIT);
+  }
+  else /* ACTIVE */
+  {
+    // If we've seen the card in the last <ACTIVE_POLL_FREQ> ms, don't bother checking for it
+    if (millis()-authd_card_last_seen < ACTIVE_POLL_FREQ)
+      return;
+    
+    // If we saw the card last poll, try polling for the card by id (instead of looking for any) 
+    if (authd_card_present) 
+    {
+      memcpy(&rfid_reader.uid.uidByte, &card, sizeof(rfid_reader.uid.uidByte));
+      if (rfid_reader.PICC_ReadCardSerial())
+      {
+        boolean match = true;
+        /* card found - just check it really is the expected card */
+        for (int i = 3; i >= 0; i--) 
+          if (rfid_reader.uid.uidByte[i] != card.uidByte[i])
+            match = false;
+            
+        if (match)
+        {
+          /* Ok, expected card found - reset card last seen time and return */
+          authd_card_last_seen = millis();
+          return;
+        }
+      }
+    }
+     
+    // Card not found - try polling for any card 
+    if (rfid_reader.PICC_IsNewCardPresent())
+    {
+      if (rfid_reader.PICC_ReadCardSerial())      
+      {
+       // card found & serial read - see if it's for the auth'd card
+        boolean match = true;
+        // Test if it's the auth'd card
+        for (int i = 3; i >= 0; i--) 
+          if (rfid_reader.uid.uidByte[i] != card.uidByte[i])
+            match = false;
+            
+        if (match)
+        {
+          // auth'd card found - reset card last seen time and return
+          authd_card_last_seen = millis();
+          authd_card_present = true;
+          return;
+        }
+      }
+    }
+    
+    // To get here, we've polled for the auth'd card, but not found it.
+    // If we're now beyond the preset session timout, disable tool by
+    // switching back to IDLE state; otherwise... wait some more.
+    if ((millis() - authd_card_last_seen) > TIMEOUT_SES)
+    {
+      send_action("INFO", "Session timeout!");
+      set_dev_state(DEV_IDLE);
+    }  
+  } //end if active   
+}
 
-  // Convert 4x bytes received to long (4 bytes)
-  for (int i = 3; i >= 0; i--) 
-    *(pCard_number++) = rfid_reader.uid.uidByte[i];
-
-  ultoa(card_number, rfid_serial, 10);
-
-  sprintf(pmsg, "AUTH:%s", rfid_serial);
- // client.publish(P_NOTE_TX, pmsg);
- // set_state(STATE_AUTH_WAIT);
- */
+// Publish <msg> to topic "<tool_topic>/<act>"
+void send_action(char *act, char *msg)
+{
+  int tt_len = strlen(tool_topic);
+  tool_topic[tt_len] = '/';
+  strcpy(tool_topic+tt_len, act);
+  client.publish(tool_topic, msg);
+  tool_topic[tt_len] = '\0';
 }
 
 void dbg_println(const __FlashStringHelper *n)
