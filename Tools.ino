@@ -125,11 +125,19 @@ void callbackMQTT(char* topic, byte* payload, unsigned int length)
     strncpy(buf, topic+strlen(tool_topic)+1, sizeof(buf));
     buf[sizeof(buf)-1] = '\0';
     
-    if (strcmp(buf, "GRANT"))
+    if (strcmp(buf, "GRANT") == 0)
     {
       // Enable tool!
       set_dev_state(DEV_ACTIVE);
     } 
+    
+    if (strcmp(buf, "DENY") == 0)
+    {
+      // Card's been rejected. Go back to idle.
+      set_dev_state(DEV_IDLE);
+      dbg_println("Card rejected!");
+    } 
+
 
      
     
@@ -230,7 +238,8 @@ void checkMQTT()
       {
         send_action("RESET", "BOOT");
         first_connect = false;   
-        set_dev_state(DEV_IDLE);        
+        set_dev_state(DEV_IDLE);      
+        dbg_println("Boot->idle");  
       }
       else if (dev_state == DEV_ACTIVE)
       {
@@ -239,6 +248,7 @@ void checkMQTT()
       {
         send_action("RESET", "IDLE");
         set_dev_state(DEV_IDLE);
+                dbg_println("Reset->idle");  
       }
     } else
     {
@@ -256,10 +266,10 @@ void setup()
   serial_state = SS_MAIN_MENU;
   set_dev_state(DEV_NO_CONN);
 
-  pinMode(PIN_RELAY, OUTPUT);
-  pinMode(PIN_INDUCT_BUTTON, INPUT);
-  digitalWrite(PIN_RELAY, LOW);
-  digitalWrite(PIN_INDUCT_BUTTON, HIGH);
+ // pinMode(PIN_RELAY, OUTPUT);
+ // pinMode(PIN_INDUCT_BUTTON, INPUT);
+ // digitalWrite(PIN_RELAY, LOW);
+//  digitalWrite(PIN_INDUCT_BUTTON, HIGH);
 
   dbg_println(F("Init LCD"));
  // lcd.init();
@@ -293,7 +303,7 @@ void setup()
   Ethernet.begin(mac, ip);
 
   dbg_println(F("Init RFID"));
- // rfid_reader.PCD_Init();
+  rfid_reader.PCD_Init();
 
   // Start MQTT and say we are alive
   dbg_println(F("Check MQTT"));
@@ -336,7 +346,10 @@ boolean set_dev_state(dev_state_t new_state)
   {
     case DEV_NO_CONN:
       if ((dev_state == DEV_IDLE) || (dev_state == DEV_AUTH_WAIT))
+      {
+        dbg_println("NO_CONN");
         dev_state =  DEV_NO_CONN;
+      }
       else
         ret = false;
       break;
@@ -345,6 +358,7 @@ boolean set_dev_state(dev_state_t new_state)
       // Any state can change to idle
       digitalWrite(PIN_RELAY, LOW);
       dev_state =  DEV_IDLE;
+      dbg_println("IDLE");
       break;
       
     case DEV_AUTH_WAIT:
@@ -352,6 +366,7 @@ boolean set_dev_state(dev_state_t new_state)
       {
         dev_state =  DEV_AUTH_WAIT;
         _auth_start = millis();
+        dbg_println("AUTH_WAIT");
       }
       else
         ret = false;
@@ -363,6 +378,7 @@ boolean set_dev_state(dev_state_t new_state)
         dev_state = DEV_ACTIVE;
         digitalWrite(PIN_RELAY, HIGH);
         _tool_start_time = millis();
+        dbg_println("ACTIVE");
       }
       else
         ret = false;
@@ -378,13 +394,13 @@ boolean set_dev_state(dev_state_t new_state)
 
 void poll_rfid()
 {
-  MFRC522::Uid card;	
+  static MFRC522::Uid card;	
   static unsigned long authd_card_last_seen = 0; // How long ago was the card used to active the tool last seen
   static boolean authd_card_present = false;
   
   byte *pCard_number = (byte*)&card_number;
 
-  if ((dev_state != DEV_IDLE) && (dev_state == DEV_ACTIVE))
+  if ((dev_state != DEV_IDLE) && (dev_state != DEV_ACTIVE))
     return;
     
   // If idle, poll for any/new card
@@ -423,17 +439,26 @@ void poll_rfid()
     if (millis()-authd_card_last_seen < ACTIVE_POLL_FREQ)
       return;
     
+    dbg_println("active card poll");
+    
     // If we saw the card last poll, try polling for the card by id (instead of looking for any) 
     if (authd_card_present) 
     {
-      memcpy(&rfid_reader.uid.uidByte, &card, sizeof(rfid_reader.uid.uidByte));
+      dbg_println("search specific");
+      memcpy(&rfid_reader.uid, &card, sizeof(rfid_reader.uid));
       if (rfid_reader.PICC_ReadCardSerial())
       {
+        dbg_println("card found");
         boolean match = true;
         /* card found - just check it really is the expected card */
         for (int i = 3; i >= 0; i--) 
+        {
+          char buf[40];
+          sprintf(buf, "[%d] new=[%x], old=[%x]", i, rfid_reader.uid.uidByte[i], card.uidByte[i]);
+          dbg_println(buf);
           if (rfid_reader.uid.uidByte[i] != card.uidByte[i])
             match = false;
+        }
             
         if (match)
         {
@@ -447,15 +472,22 @@ void poll_rfid()
     // Card not found - try polling for any card 
     if (rfid_reader.PICC_IsNewCardPresent())
     {
+      dbg_println("Card present");
       if (rfid_reader.PICC_ReadCardSerial())      
       {
+        dbg_println("Card read");
        // card found & serial read - see if it's for the auth'd card
         boolean match = true;
         // Test if it's the auth'd card
         for (int i = 3; i >= 0; i--) 
+        {
+          char buf[40];
+          sprintf(buf, "[%d] new=[%x], old=[%x]", i, rfid_reader.uid.uidByte[i], card.uidByte[i]);
+          dbg_println(buf);
+          
           if (rfid_reader.uid.uidByte[i] != card.uidByte[i])
             match = false;
-            
+        }
         if (match)
         {
           // auth'd card found - reset card last seen time and return
@@ -463,6 +495,8 @@ void poll_rfid()
           authd_card_present = true;
           return;
         }
+        else
+          dbg_println("Mismatch!");
       }
     }
     
@@ -473,6 +507,7 @@ void poll_rfid()
     {
       send_action("INFO", "Session timeout!");
       set_dev_state(DEV_IDLE);
+      dbg_println("ses to->idle");
     }  
   } //end if active   
 }
@@ -482,7 +517,7 @@ void send_action(char *act, char *msg)
 {
   int tt_len = strlen(tool_topic);
   tool_topic[tt_len] = '/';
-  strcpy(tool_topic+tt_len, act);
+  strcpy(tool_topic+tt_len+1, act);
   client.publish(tool_topic, msg);
   tool_topic[tt_len] = '\0';
 }
@@ -510,7 +545,7 @@ void dbg_println(const __FlashStringHelper *n)
 }
 
 void dbg_println(const char *msg)
-{
+{/*
   byte *payload;
 
   memset(pmsg, 0, sizeof(pmsg));
@@ -522,6 +557,9 @@ void dbg_println(const char *msg)
 
 
   Serial.println(pmsg+sizeof("INFO"));
-
+*/
+Serial.println(msg);
 }
+
+
 

@@ -30,14 +30,14 @@
 /* Pin assigments */
 //      LCD SDA          A4
 //      LCD SCL          A5
-#define PIN_CANCEL_BUTTON 2
-#define PIN_CANCEL_LIGHT  3
+#define PIN_CANCEL_BUTTON 2 /* Sign off */
+#define PIN_INDUCT_BUTTON 3
 //      Ethernet          4
 #define PIN_RELAY         5
-#define PIN_RFID_RST      6
-#define PIN_RFID_SS       7
-#define PIN_INDUCT_BUTTON 8
-//#define PIN_            9
+#define PIN_RFID_RST      6 /* RST */
+#define PIN_RFID_SS       7 /* SDA */
+#define PIN_CANCEL_LIGHT  8 /* Sign off */
+#define PIN_STATE_LED     9
 //      Ethernet SS      10
 //      MISO (RFID+Eth)  11
 //      MOSI (RFID+Eth)  12
@@ -51,7 +51,7 @@
 #define EEPROM_NAME         50 // 20 bytes   e.g. "laser"
 
 // IP of MQTT server
-byte server[] = { 192, 168, 1, 71 };
+byte server[] = { 192, 168, 0, 71 };
 #define MQTT_PORT 1883
 
 #define ACTIVE_POLL_FREQ 1000 // Frequency to poll for RFID card when device active (i.e. how often to recheck it's present)
