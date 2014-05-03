@@ -87,6 +87,8 @@ byte ip[4];
 
 unsigned long _tool_start_time;
 unsigned long _auth_start;
+boolean _induct_button_pushed;
+boolean _signoff_button_pushed;
 
 char tool_topic[20+40+10+4]; // name + base_topic + action + delimiters + terminator
 
@@ -138,9 +140,6 @@ void callbackMQTT(char* topic, byte* payload, unsigned int length)
       dbg_println("Card rejected!");
     } 
 
-
-     
-    
   }
     
     
@@ -213,7 +212,7 @@ void checkMQTT()
   
   if (!client.connected()) 
   {
-    if (client.connect(CLIENT_ID)) 
+    if (client.connect(dev_name)) 
     {
       char buf[30];
       
@@ -266,10 +265,16 @@ void setup()
   serial_state = SS_MAIN_MENU;
   set_dev_state(DEV_NO_CONN);
 
- // pinMode(PIN_RELAY, OUTPUT);
- // pinMode(PIN_INDUCT_BUTTON, INPUT);
- // digitalWrite(PIN_RELAY, LOW);
-//  digitalWrite(PIN_INDUCT_BUTTON, HIGH);
+  pinMode(PIN_RELAY, OUTPUT);
+  pinMode(PIN_SIGNOFF_LIGHT, OUTPUT);    
+  pinMode(PIN_INDUCT_BUTTON, INPUT);
+  pinMode(PIN_SIGNOFF_BUTTON, INPUT);
+
+  digitalWrite(PIN_RELAY, LOW);
+  digitalWrite(PIN_SIGNOFF_LIGHT, LOW); 
+  digitalWrite(PIN_INDUCT_BUTTON, HIGH);
+  digitalWrite(PIN_SIGNOFF_BUTTON, HIGH); 
+  
 
   dbg_println(F("Init LCD"));
  // lcd.init();
@@ -308,6 +313,12 @@ void setup()
   // Start MQTT and say we are alive
   dbg_println(F("Check MQTT"));
   checkMQTT();
+  
+  _signoff_button_pushed = false;
+  _induct_button_pushed = false;
+
+  attachInterrupt(0, signoff_button, FALLING); // int0 = PIN_SIGNOFF_BUTTON
+  attachInterrupt(1, induct_button , FALLING); // int1 = PIN_INDUCT_BUTTON 
 
   delay(100);
 
@@ -317,7 +328,15 @@ void setup()
   serial_show_main_menu();  
 } // end void setup()
 
+void signoff_button()
+{
+  _signoff_button_pushed = true;
+}
 
+void induct_button()
+{
+  _induct_button_pushed = true;
+}
 
 void loop()
 {
@@ -333,7 +352,9 @@ void loop()
   
   // Do serial menu
   serial_menu();
-
+  
+  // Check if either the sign-off or induct buttons have been pushed
+  check_buttons();
 
 } // end void loop()
 
@@ -349,6 +370,7 @@ boolean set_dev_state(dev_state_t new_state)
       {
         dbg_println("NO_CONN");
         dev_state =  DEV_NO_CONN;
+        digitalWrite(PIN_SIGNOFF_LIGHT, LOW);
       }
       else
         ret = false;
@@ -357,6 +379,9 @@ boolean set_dev_state(dev_state_t new_state)
     case DEV_IDLE:
       // Any state can change to idle
       digitalWrite(PIN_RELAY, LOW);
+      digitalWrite(PIN_SIGNOFF_LIGHT, LOW);
+      if (dev_state == DEV_ACTIVE)
+        send_action("COMPLETE", "0");
       dev_state =  DEV_IDLE;
       dbg_println("IDLE");
       break;
@@ -366,6 +391,7 @@ boolean set_dev_state(dev_state_t new_state)
       {
         dev_state =  DEV_AUTH_WAIT;
         _auth_start = millis();
+        digitalWrite(PIN_SIGNOFF_LIGHT, HIGH); 
         dbg_println("AUTH_WAIT");
       }
       else
@@ -439,52 +465,18 @@ void poll_rfid()
     if (millis()-authd_card_last_seen < ACTIVE_POLL_FREQ)
       return;
     
-    dbg_println("active card poll");
-    
-    // If we saw the card last poll, try polling for the card by id (instead of looking for any) 
-    if (authd_card_present) 
-    {
-      dbg_println("search specific");
-      memcpy(&rfid_reader.uid, &card, sizeof(rfid_reader.uid));
-      if (rfid_reader.PICC_ReadCardSerial())
-      {
-        dbg_println("card found");
-        boolean match = true;
-        /* card found - just check it really is the expected card */
-        for (int i = 3; i >= 0; i--) 
-        {
-          char buf[40];
-          sprintf(buf, "[%d] new=[%x], old=[%x]", i, rfid_reader.uid.uidByte[i], card.uidByte[i]);
-          dbg_println(buf);
-          if (rfid_reader.uid.uidByte[i] != card.uidByte[i])
-            match = false;
-        }
-            
-        if (match)
-        {
-          /* Ok, expected card found - reset card last seen time and return */
-          authd_card_last_seen = millis();
-          return;
-        }
-      }
-    }
+    dbg_println("Poll for auth'd card");
      
-    // Card not found - try polling for any card 
+    // Poll for card 
     if (rfid_reader.PICC_IsNewCardPresent())
     {
-      dbg_println("Card present");
       if (rfid_reader.PICC_ReadCardSerial())      
       {
-        dbg_println("Card read");
        // card found & serial read - see if it's for the auth'd card
         boolean match = true;
         // Test if it's the auth'd card
         for (int i = 3; i >= 0; i--) 
-        {
-          char buf[40];
-          sprintf(buf, "[%d] new=[%x], old=[%x]", i, rfid_reader.uid.uidByte[i], card.uidByte[i]);
-          dbg_println(buf);
-          
+        {          
           if (rfid_reader.uid.uidByte[i] != card.uidByte[i])
             match = false;
         }
@@ -493,10 +485,13 @@ void poll_rfid()
           // auth'd card found - reset card last seen time and return
           authd_card_last_seen = millis();
           authd_card_present = true;
+          dbg_println("Card found");
           return;
         }
         else
-          dbg_println("Mismatch!");
+        {
+          dbg_println("Unexpect card found");
+        }
       }
     }
     
@@ -510,6 +505,19 @@ void poll_rfid()
       dbg_println("ses to->idle");
     }  
   } //end if active   
+}
+
+void check_buttons()
+{
+  if (_signoff_button_pushed)
+  {
+    _signoff_button_pushed = false;
+    set_dev_state(DEV_IDLE);
+  }
+  
+  /* TODO: Induct button */
+  
+  
 }
 
 // Publish <msg> to topic "<tool_topic>/<act>"
@@ -557,8 +565,8 @@ void dbg_println(const char *msg)
 
 
   Serial.println(pmsg+sizeof("INFO"));
-*/
-Serial.println(msg);
+  */
+  Serial.println(msg);
 }
 
 

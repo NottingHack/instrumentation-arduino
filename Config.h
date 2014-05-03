@@ -30,18 +30,18 @@
 /* Pin assigments */
 //      LCD SDA          A4
 //      LCD SCL          A5
-#define PIN_CANCEL_BUTTON 2 /* Sign off */
-#define PIN_INDUCT_BUTTON 3
-//      Ethernet          4
-#define PIN_RELAY         5
-#define PIN_RFID_RST      6 /* RST */
-#define PIN_RFID_SS       7 /* SDA */
-#define PIN_CANCEL_LIGHT  8 /* Sign off */
-#define PIN_STATE_LED     9
-//      Ethernet SS      10
-//      MISO (RFID+Eth)  11
-//      MOSI (RFID+Eth)  12
-//      SCK  (RFID+Eth)  13
+#define PIN_SIGNOFF_BUTTON 2 /* Uses interupt - do not move */
+#define PIN_INDUCT_BUTTON  3 /* Uses interupt - do not move */
+//      Ethernet           4
+#define PIN_RELAY          5
+#define PIN_RFID_RST       6 /* RST */
+#define PIN_RFID_SS        7 /* SDA */
+#define PIN_SIGNOFF_LIGHT  8 /* Sign off */
+#define PIN_STATE_LED      9
+//      Ethernet SS       10
+//      MISO (RFID+Eth)   11
+//      MOSI (RFID+Eth)   12
+//      SCK  (RFID+Eth)   13
 
 
 // Locations in EEPROM of various settings
@@ -54,23 +54,13 @@
 byte server[] = { 192, 168, 0, 71 };
 #define MQTT_PORT 1883
 
-#define ACTIVE_POLL_FREQ 1000 // Frequency to poll for RFID card when device active (i.e. how often to recheck it's present)
-
-// Subscribe to topics
-//#define S_NOTE_RX "nh/note_acc/tx"
-
-// Publish Topics
-//#define P_NOTE_TX "nh/note_acc/rx"
+#define ACTIVE_POLL_FREQ 1000 // Frequency (in ms) to poll for RFID card when device active (i.e. how often to recheck it's present)
 
 // Status Topic, use to say we are alive or DEAD (will)
 #define S_STATUS "nh/status/req"
 #define P_STATUS "nh/status/res"
 #define STATUS_STRING "STATUS"
-#define RUNNING "Running: note_acceptor"
-//#define RESTART "Restart: note_acceptor"
 
-// Client id for connecting to MQTT
-#define CLIENT_ID "note_acceptor"
 
 // Debug output destinations
 #define DEBUG_MQTT
@@ -79,9 +69,9 @@ byte server[] = { 192, 168, 0, 71 };
 // buffer size
 #define DMSG  50
 
-#define TIMEOUT_COMS (1000*10) // 10s - timeout waiting for server/note acceptor.
-#define TIMEOUT_SES  (1000*30) // 30s - Sesion timout - (STATE_ACCEPT - waiting for user)
+#define TIMEOUT_SES  (1000*30) // 30s - Session timout - how long to wait without seeing the card before disabling tool
 
+// Serial/config menu current position
 enum serial_state_t
 {
   SS_MAIN_MENU,
@@ -96,7 +86,6 @@ enum dev_state_t
 {
   DEV_NO_CONN,    // No MQTT connection
   DEV_IDLE,       // Idle - tool powered off, waiting for RFID card
-  DEV_AUTH_WAIT,  
-  DEV_ACTIVE      // Tool power enabled - RFID string in memory
-  
+  DEV_AUTH_WAIT,  // Card presented, waiting for yay/nay response from server
+  DEV_ACTIVE      // Tool power enabled - RFID string in memory 
 };
