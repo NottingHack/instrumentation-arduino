@@ -30,14 +30,14 @@
 /* Pin assigments */
 //      LCD SDA          A4
 //      LCD SCL          A5
-#define PIN_SIGNOFF_BUTTON 2 /* Uses interupt - do not move */
-#define PIN_INDUCT_BUTTON  3 /* Uses interupt - do not move */
+#define PIN_SIGNOFF_BUTTON 2 /* Uses interupt0 - do not move */
+#define PIN_INDUCT_BUTTON  3 /* Uses interupt1 - do not move */
 //      Ethernet           4
 #define PIN_RELAY          5
 #define PIN_RFID_RST       6 /* RST */
 #define PIN_RFID_SS        7 /* SDA */
 #define PIN_SIGNOFF_LIGHT  8 /* Sign off */
-#define PIN_STATE_LED      9
+#define PIN_INDUCT_LED     9
 //      Ethernet SS       10
 //      MISO (RFID+Eth)   11
 //      MOSI (RFID+Eth)   12
@@ -51,7 +51,7 @@
 #define EEPROM_NAME         50 // 20 bytes   e.g. "laser"
 
 // IP of MQTT server
-byte server[] = { 192, 168, 1, 1 };
+byte server[] = { 10, 0, 0, 98 };
 #define MQTT_PORT 1883
 
 #define ACTIVE_POLL_FREQ 1000 // Frequency (in ms) to poll for RFID card when device active (i.e. how often to recheck it's present)
@@ -69,7 +69,7 @@ byte server[] = { 192, 168, 1, 1 };
 // buffer size
 #define DMSG  50
 
-#define TIMEOUT_SES  (1000*30) // 30s - Session timout - how long to wait without seeing the card before disabling tool
+#define TIMEOUT_SES  (1000*15) // 15s - Session timout - how long to wait without seeing the card before disabling tool
 
 // Serial/config menu current position
 enum serial_state_t

@@ -36,10 +36,10 @@
  * Expects to be connected to:
  *   - I2C 20x4 LCD (HCARDU0023) - OPTIONAL
  *   - SPI RFID reader (HCMODU0016)
- *   - Ethernet shield
+ *   - Wiznet W5100 based Ethernet shield
  * Pin assignments are in Config.h
  *
- * Config (IP, MAC, etc) is done using serial @ 9600
+ * Configuration (IP, MAC, etc) is done using serial @ 9600. Reset the Arduino after changing the config.
  *
  * Additional required libraries:
  *   - PubSubClient                       - https://github.com/knolleary/pubsubclient
@@ -57,7 +57,7 @@
 #include <avr/wdt.h> 
 #include "Config.h"
 
-#define LCD_WIDTH 20
+#define LCD_WIDTH 16
 
 void callbackMQTT(char* topic, byte* payload, unsigned int length);
 
@@ -66,35 +66,32 @@ void poll_rfid();
 void dbg_println(const __FlashStringHelper *n);
 void dbg_println(const char *msg);
 
-EthernetClient ethClient;
-PubSubClient client(server, MQTT_PORT, callbackMQTT, ethClient);
+EthernetClient _ethClient;
+PubSubClient _client(server, MQTT_PORT, callbackMQTT, _ethClient);
 //LiquidCrystal_I2C lcd(0x27,20,4);  // 20x4 display at address 0x27
-MFRC522 rfid_reader(PIN_RFID_SS, PIN_RFID_RST);
+MFRC522 _rfid_reader(PIN_RFID_SS, PIN_RFID_RST);
 
-serial_state_t serial_state;
-dev_state_t    dev_state;
+serial_state_t _serial_state;
+dev_state_t    _dev_state;
 
-char pmsg[DMSG];
-unsigned long card_number;
-char rfid_serial[20];
-char tran_id[10]; // transaction id
-char mqtt_rx_buf[30];
-char base_topic[41];
-char dev_name [21];
+char _pmsg[DMSG];
+char _base_topic[41];
+char _dev_name [21];
 
 // MAC / IP address of device
-byte mac[6];
-byte ip[4];
+byte _mac[6];
+byte _ip[4];
 
 unsigned long _tool_start_time;
 unsigned long _auth_start;
 boolean _induct_button_pushed;
 boolean _signoff_button_pushed;
+boolean _can_induct;
+unsigned long _last_rejected_card = 0;
+unsigned long _last_rejected_read = 0;
+unsigned long _card_number;
 
-char tool_topic[20+40+10+4]; // name + base_topic + action + delimiters + terminator
-
-
-/** TODO: complete message. Track time. SIGNOFF action */
+char tool_topic[20+40+10+4]; // name + _base_topic + action + delimiters + terminator
 
 /**************************************************** 
  * callbackMQTT
@@ -104,18 +101,15 @@ char tool_topic[20+40+10+4]; // name + base_topic + action + delimiters + termin
 void callbackMQTT(char* topic, byte* payload, unsigned int length)
 {
   char buf [30];
-  
-  if (length >= sizeof(mqtt_rx_buf))
-    return;
-    
+
   // Respond to status requests
-  else if (!strcmp(topic, S_STATUS))
+  if (!strcmp(topic, S_STATUS))
   {
     if (!strncmp(STATUS_STRING, (char*)payload, strlen(STATUS_STRING)))
     {
       dbg_println(F("Status Request"));
-      sprintf(buf, "Running: %s", dev_name);      
-      client.publish(P_STATUS, buf);
+      sprintf(buf, "Running: %s", _dev_name);      
+      _client.publish(P_STATUS, buf);
     }
   }    
 
@@ -127,23 +121,35 @@ void callbackMQTT(char* topic, byte* payload, unsigned int length)
       return;
     strncpy(buf, topic+strlen(tool_topic)+1, sizeof(buf));
     buf[sizeof(buf)-1] = '\0';
-    
+
+    // For the GRANT message, the payload should be either "U", "I" or "M" (User, Inductor or Maintainer) 
     if (strcmp(buf, "GRANT") == 0)
     {
+      if (length < 1)
+        return;
+        
+      // Check if member can induct others. For now, maintainer & inductor's are treated equally
+      if ((payload[0] == 'I') || (payload[0] == 'M'))
+        _can_induct = true;
+      else 
+        _can_induct = false;      
+      
       // Enable tool!
       set_dev_state(DEV_ACTIVE);
     } 
-    
+
     if (strcmp(buf, "DENY") == 0)
     {
       // Card's been rejected. Go back to idle.
       set_dev_state(DEV_IDLE);
       dbg_println("Card rejected!");
+      _last_rejected_card = _card_number;
+      _last_rejected_read = millis();
     } 
 
   }
-    
-    
+
+
 
 } // end void callback(char* topic, byte* payload,int length)
 
@@ -174,7 +180,7 @@ void mqtt_rx_display(char *payload)
       break;
     }
 
-   *lnPtr++ = *payPtr++;
+    *lnPtr++ = *payPtr++;
   }
 
   lnPtr = ln2;
@@ -193,12 +199,12 @@ void mqtt_rx_display(char *payload)
   }
 
   /* Output 1st line */
- // lcd.setCursor(0, 2);
+  // lcd.setCursor(0, 2);
   //lcd.print(ln1); 
 
   /* Output 2nd line */
-//  lcd.setCursor(0, 3);
- // lcd.print(ln2);
+  //  lcd.setCursor(0, 3);
+  // lcd.print(ln2);
 }
 
 /**************************************************** 
@@ -210,29 +216,29 @@ void checkMQTT()
 {  
   char *pToolTopic;
   static boolean first_connect = true;
-  
-  if (!client.connected()) 
+
+  if (!_client.connected()) 
   {
-    if (client.connect(dev_name)) 
+    if (_client.connect(_dev_name)) 
     {
       char buf[30];
-      
+
       dbg_println(F("Connected to MQTT"));
-      sprintf(buf, "Restart: %s", dev_name);
-      client.publish(P_STATUS, buf);
-      
+      sprintf(buf, "Restart: %s", _dev_name);
+      _client.publish(P_STATUS, buf);
+
       // Subscribe to <tool_topic>/#, without having to declare another large buffer just for this.
       pToolTopic = tool_topic + strlen(tool_topic);
       *pToolTopic     = '/';
       *(pToolTopic+1) = '#';
       *(pToolTopic+2) = '\0';
       Serial.println(tool_topic);
-      client.subscribe(tool_topic);
+      _client.subscribe(tool_topic);
       *pToolTopic = '\0';
 
       Serial.println(S_STATUS);
-      client.subscribe(S_STATUS); 
-   
+      _client.subscribe(S_STATUS); 
+
       // Update state - but be sure not to deactive tool if connection was lost/restored whilst in use
       if (first_connect)
       {
@@ -241,16 +247,18 @@ void checkMQTT()
         set_dev_state(DEV_IDLE);      
         dbg_println("Boot->idle");  
       }
-      else if (dev_state == DEV_ACTIVE)
+      else if (_dev_state == DEV_ACTIVE)
       {
         send_action("RESET", "ACTIVE");
-      } else
+      } 
+      else
       {
         send_action("RESET", "IDLE");
         set_dev_state(DEV_IDLE);
-                dbg_println("Reset->idle");  
+        dbg_println("Reset->idle");  
       }
-    } else
+    } 
+    else
     {
       // If state is ACTIVE, this won't have any effect
       set_dev_state(DEV_NO_CONN);
@@ -263,58 +271,60 @@ void setup()
   wdt_disable();
   Serial.begin(9600);
   dbg_println(F("Start!"));
-  serial_state = SS_MAIN_MENU;
+  _serial_state = SS_MAIN_MENU;
   set_dev_state(DEV_NO_CONN);
 
   pinMode(PIN_RELAY, OUTPUT);
-  pinMode(PIN_SIGNOFF_LIGHT, OUTPUT);    
+  pinMode(PIN_SIGNOFF_LIGHT, OUTPUT);   
+  pinMode(PIN_INDUCT_LED, OUTPUT); 
   pinMode(PIN_INDUCT_BUTTON, INPUT);
   pinMode(PIN_SIGNOFF_BUTTON, INPUT);
 
   digitalWrite(PIN_RELAY, LOW);
   digitalWrite(PIN_SIGNOFF_LIGHT, LOW); 
+  digitalWrite(PIN_INDUCT_LED, LOW);
   digitalWrite(PIN_INDUCT_BUTTON, HIGH);
   digitalWrite(PIN_SIGNOFF_BUTTON, HIGH); 
-  
+
 
   dbg_println(F("Init LCD"));
- // lcd.init();
-//  lcd.backlight();
-//  lcd.home();
-//  lcd.print(F("Nottinghack note    "));
- // lcd.setCursor(0, 1);
-//  lcd.print(F("acceptor v0.01....  "));
+  // lcd.init();
+  //  lcd.backlight();
+  //  lcd.home();
+  //  lcd.print(F("Nottinghack note    "));
+  // lcd.setCursor(0, 1);
+  //  lcd.print(F("acceptor v0.01....  "));
 
   dbg_println(F("Init SPI"));
   SPI.begin();
-  
+
   // Read settings from eeprom
   for (int i = 0; i < 6; i++)
-    mac[i] = EEPROM.read(EEPROM_MAC+i);
-    
+    _mac[i] = EEPROM.read(EEPROM_MAC+i);
+
   for (int i = 0; i < 4; i++)
-    ip[i] = EEPROM.read(EEPROM_IP+i);
-    
+    _ip[i] = EEPROM.read(EEPROM_IP+i);
+
   for (int i = 0; i < 40; i++)
-    base_topic[i] = EEPROM.read(EEPROM_BASE_TOPIC+i);
-  base_topic[40] = '\0';
-  
+    _base_topic[i] = EEPROM.read(EEPROM_BASE_TOPIC+i);
+  _base_topic[40] = '\0';
+
   for (int i = 0; i < 20; i++)
-    dev_name[i] = EEPROM.read(EEPROM_NAME+i);
-  dev_name[20] = '\0';
-  
-  sprintf(tool_topic, "%s/%s", base_topic, dev_name);
+    _dev_name[i] = EEPROM.read(EEPROM_NAME+i);
+  _dev_name[20] = '\0';
+
+  sprintf(tool_topic, "%s/%s", _base_topic, _dev_name);
 
   dbg_println(F("Start Ethernet"));
-  Ethernet.begin(mac, ip);
+  Ethernet.begin(_mac, _ip);
 
   dbg_println(F("Init RFID"));
-  rfid_reader.PCD_Init();
+  _rfid_reader.PCD_Init();
 
   // Start MQTT and say we are alive
   dbg_println(F("Check MQTT"));
   checkMQTT();
-  
+
   _signoff_button_pushed = false;
   _induct_button_pushed = false;
 
@@ -343,17 +353,17 @@ void loop()
 {
   // Poll MQTT
   // should cause callback if there's a new message
-  client.loop();
+  _client.loop();
 
   // are we still connected to MQTT
   checkMQTT();
 
   // Check for RFID card
   poll_rfid();
-  
+
   // Do serial menu
   serial_menu();
-  
+
   // Check if either the sign-off or induct buttons have been pushed
   check_buttons();
 
@@ -363,101 +373,112 @@ void loop()
 boolean set_dev_state(dev_state_t new_state)
 {
   boolean ret = true;
-  
+
   switch (new_state)
   {
-    case DEV_NO_CONN:
-      if ((dev_state == DEV_IDLE) || (dev_state == DEV_AUTH_WAIT))
-      {
-        dbg_println("NO_CONN");
-        dev_state =  DEV_NO_CONN;
-        digitalWrite(PIN_SIGNOFF_LIGHT, LOW);
-      }
-      else
-        ret = false;
-      break;
-      
-    case DEV_IDLE:
-      // Any state can change to idle
-      digitalWrite(PIN_RELAY, LOW);
+  case DEV_NO_CONN:
+    if ((_dev_state == DEV_IDLE) || (_dev_state == DEV_AUTH_WAIT))
+    {
+      dbg_println("NO_CONN");
+      _dev_state =  DEV_NO_CONN;
       digitalWrite(PIN_SIGNOFF_LIGHT, LOW);
-      if (dev_state == DEV_ACTIVE)
-        send_action("COMPLETE", "0");
-      dev_state =  DEV_IDLE;
-      dbg_println("IDLE");
-      break;
-      
-    case DEV_AUTH_WAIT:
-      if (dev_state == DEV_IDLE)
-      {
-        dev_state =  DEV_AUTH_WAIT;
-        _auth_start = millis();
-        digitalWrite(PIN_SIGNOFF_LIGHT, HIGH); 
-        dbg_println("AUTH_WAIT");
-      }
-      else
-        ret = false;
-      break;
-      
-    case DEV_ACTIVE:
-      if (dev_state == DEV_AUTH_WAIT)
-      {
-        dev_state = DEV_ACTIVE;
-        digitalWrite(PIN_RELAY, HIGH);
-        _tool_start_time = millis();
-        dbg_println("ACTIVE");
-      }
-      else
-        ret = false;
-      break;
-      
-    default:
+    }
+    else
       ret = false;
-      break;
+    break;
+
+  case DEV_IDLE:
+    // Any state can change to idle
+    digitalWrite(PIN_RELAY, LOW);
+    digitalWrite(PIN_SIGNOFF_LIGHT, LOW);
+    digitalWrite(PIN_INDUCT_LED, LOW);
+    if (_dev_state == DEV_ACTIVE)
+      send_action("COMPLETE", "0");
+    _dev_state =  DEV_IDLE;
+    dbg_println("IDLE");
+    break;
+
+  case DEV_AUTH_WAIT:
+    if (_dev_state == DEV_IDLE)
+    {
+      _dev_state =  DEV_AUTH_WAIT;
+      _auth_start = millis();
+      digitalWrite(PIN_SIGNOFF_LIGHT, HIGH); 
+      dbg_println("AUTH_WAIT");
+    }
+    else
+      ret = false;
+    break;
+
+  case DEV_ACTIVE:
+    if (_dev_state == DEV_AUTH_WAIT)
+    {
+      _dev_state = DEV_ACTIVE;
+      digitalWrite(PIN_RELAY, HIGH);
+      _tool_start_time = millis();
+      dbg_println("ACTIVE");
+
+      if (_can_induct)
+        digitalWrite(PIN_INDUCT_LED, HIGH);
+    }
+    else
+      ret = false;
+    break;
+
+  default:
+    ret = false;
+    break;
   }
-  
+
   return ret;
 }
 
 void poll_rfid()
 {
   static MFRC522::Uid card;	
-  static unsigned long authd_card_last_seen = 0; // How long ago was the card used to active the tool last seen
+  static unsigned long authd_card_last_seen = 0; // How long ago was the card used to active the tool last see
   static boolean authd_card_present = false;
   
-  byte *pCard_number = (byte*)&card_number;
+  char rfid_serial[20];
 
-  if ((dev_state != DEV_IDLE) && (dev_state != DEV_ACTIVE))
+  byte *pCard_number = (byte*)&_card_number;
+
+  if ((_dev_state != DEV_IDLE) && (_dev_state != DEV_ACTIVE))
     return;
-    
+
   // If idle, poll for any/new card
-  if (dev_state == DEV_IDLE)
+  if (_dev_state == DEV_IDLE)
   {
     int tt_len; // tool topic string length
     authd_card_present = false;
     memset(&card, 0, sizeof(card));
-    
-    if (!rfid_reader.PICC_IsNewCardPresent())
+
+    if (!_rfid_reader.PICC_IsNewCardPresent())
       return;
-  
-    if (!rfid_reader.PICC_ReadCardSerial())
+
+    if (!_rfid_reader.PICC_ReadCardSerial())
       return;      
 
     // Convert 4x bytes received to long (4 bytes)
     for (int i = 3; i >= 0; i--) 
-      *(pCard_number++) = rfid_reader.uid.uidByte[i];
-  
+      *(pCard_number++) = _rfid_reader.uid.uidByte[i];
+
+    ultoa(_card_number, rfid_serial, 10);
+    
+    // If the same card has already been rejected in the last 10s, don't bother querying the server again
+    if ((_card_number == _last_rejected_card) && ((millis() - _last_rejected_read) < 10000))
+      return;
+
     // Send AUTH request to server
-    ultoa(card_number, rfid_serial, 10);
-    sprintf(pmsg, "%s", rfid_serial);    
-    send_action("AUTH", pmsg);
+    sprintf(_pmsg, "%s", rfid_serial);    
+    send_action("AUTH", _pmsg);
 
     // Keep a copy of the card ID we're auth'ing
-    memcpy(&card, &rfid_reader.uid, sizeof(card));
-    
+    memcpy(&card, &_rfid_reader.uid, sizeof(card));
+
     authd_card_last_seen = millis();
     authd_card_present = true;
-    
+
     set_dev_state(DEV_AUTH_WAIT);
   }
   else /* ACTIVE */
@@ -465,20 +486,20 @@ void poll_rfid()
     // If we've seen the card in the last <ACTIVE_POLL_FREQ> ms, don't bother checking for it
     if (millis()-authd_card_last_seen < ACTIVE_POLL_FREQ)
       return;
-    
+
     dbg_println("Poll for auth'd card");
-     
+
     // Poll for card 
-    if (rfid_reader.PICC_IsNewCardPresent())
+    if (_rfid_reader.PICC_IsNewCardPresent())
     {
-      if (rfid_reader.PICC_ReadCardSerial())      
+      if (_rfid_reader.PICC_ReadCardSerial())      
       {
-       // card found & serial read - see if it's for the auth'd card
+        // card found & serial read - see if it's for the auth'd card
         boolean match = true;
         // Test if it's the auth'd card
         for (int i = 3; i >= 0; i--) 
         {          
-          if (rfid_reader.uid.uidByte[i] != card.uidByte[i])
+          if (_rfid_reader.uid.uidByte[i] != card.uidByte[i])
             match = false;
         }
         if (match)
@@ -495,7 +516,7 @@ void poll_rfid()
         }
       }
     }
-    
+
     // To get here, we've polled for the auth'd card, but not found it.
     // If we're now beyond the preset session timout, disable tool by
     // switching back to IDLE state; otherwise... wait some more.
@@ -516,9 +537,19 @@ void check_buttons()
     set_dev_state(DEV_IDLE);
   }
   
+  if (_induct_button_pushed)
+  {
+    _induct_button_pushed = false;
+    if (_can_induct)
+    {
+      
+      
+      
+    }
+  }
+
   /* TODO: Induct button */
-  
-  
+// Clear  _last_rejected_read
 }
 
 // Publish <msg> to topic "<tool_topic>/<act>"
@@ -527,7 +558,7 @@ void send_action(char *act, char *msg)
   int tt_len = strlen(tool_topic);
   tool_topic[tt_len] = '/';
   strcpy(tool_topic+tt_len+1, act);
-  client.publish(tool_topic, msg);
+  _client.publish(tool_topic, msg);
   tool_topic[tt_len] = '\0';
 }
 
@@ -537,38 +568,39 @@ void dbg_println(const __FlashStringHelper *n)
   byte *payload;
   char *pn = (char*)n;
 
-  memset(pmsg, 0, sizeof(pmsg));
-  strcpy(pmsg, "INFO:");
-  payload = (byte*)pmsg + sizeof("INFO");
+  memset(_pmsg, 0, sizeof(_pmsg));
+  strcpy(_pmsg, "INFO:");
+  payload = (byte*)_pmsg + sizeof("INFO");
 
   while ((c = pgm_read_byte_near(pn++)) != 0)
     *(payload++) = c;
 
 #ifdef DEBUG_MQTT
-//  client.publish(P_NOTE_TX, pmsg);
+  //  _client.publish(P_NOTE_TX, _pmsg);
 #endif
 
 
-  Serial.println(pmsg+sizeof("INFO"));
+  Serial.println(_pmsg+sizeof("INFO"));
 
 }
 
 void dbg_println(const char *msg)
 {/*
   byte *payload;
-
-  memset(pmsg, 0, sizeof(pmsg));
-  strcpy(pmsg, "INFO:");
-  strcat(pmsg, msg);
-  payload = (byte*)pmsg + sizeof("INFO");
-
-
-
-
-  Serial.println(pmsg+sizeof("INFO"));
-  */
+ 
+ memset(_pmsg, 0, sizeof(_pmsg));
+ strcpy(_pmsg, "INFO:");
+ strcat(_pmsg, msg);
+ payload = (byte*)_pmsg + sizeof("INFO");
+ 
+ 
+ 
+ 
+ Serial.println(_pmsg+sizeof("INFO"));
+ */
   Serial.println(msg);
 }
+
 
 
 
