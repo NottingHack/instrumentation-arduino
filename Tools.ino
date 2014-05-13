@@ -84,12 +84,16 @@ byte _ip[4];
 
 unsigned long _tool_start_time;
 unsigned long _auth_start;
-boolean _induct_button_pushed;
-boolean _signoff_button_pushed;
+volatile boolean _induct_button_pushed;
+volatile boolean _signoff_button_pushed;
 boolean _can_induct;
 unsigned long _last_rejected_card = 0;
 unsigned long _last_rejected_read = 0;
 unsigned long _card_number;
+boolean _authd_card_present = false;
+unsigned long _authd_card_last_seen = 0; // How long ago was the card used to active the tool last see
+
+unsigned long _inductor_card = 0;
 
 char tool_topic[20+40+10+4]; // name + _base_topic + action + delimiters + terminator
 
@@ -146,6 +150,18 @@ void callbackMQTT(char* topic, byte* payload, unsigned int length)
       _last_rejected_card = _card_number;
       _last_rejected_read = millis();
     } 
+    
+    if (strcmp(buf, "ISUC") == 0) // induct success
+    {
+      // Induction complete - go back to idle
+      set_dev_state(DEV_IDLE);
+    }
+    
+    if (strcmp(buf, "IFAL") == 0) // induct failed
+    {
+      // Induct failed (e.g. unknown card). Go back to DEV_INDUCT from INDUCT_WAIT
+      set_dev_state(DEV_INDUCT);
+    }
 
   }
 
@@ -349,6 +365,31 @@ void induct_button()
   _induct_button_pushed = true;
 }
 
+void induct_loop()
+{
+  static unsigned long led_last_change = 0;
+  static boolean led_state = false;
+  
+  if (_dev_state == DEV_INDUCT)
+  {
+    if (millis()-led_last_change > INDUCT_FLASH_FREQ)
+    {
+      led_last_change = millis();
+      if (led_state)
+      {
+        led_state = false;
+        digitalWrite(PIN_INDUCT_LED, HIGH);
+      }
+      else
+      {
+        led_state = true;
+        digitalWrite(PIN_INDUCT_LED, LOW);
+      }
+    }
+  }
+  
+}
+
 void loop()
 {
   // Poll MQTT
@@ -366,6 +407,8 @@ void loop()
 
   // Check if either the sign-off or induct buttons have been pushed
   check_buttons();
+  
+  induct_loop();
 
 } // end void loop()
 
@@ -377,7 +420,7 @@ boolean set_dev_state(dev_state_t new_state)
   switch (new_state)
   {
   case DEV_NO_CONN:
-    if ((_dev_state == DEV_IDLE) || (_dev_state == DEV_AUTH_WAIT))
+    if ((_dev_state == DEV_IDLE) || (_dev_state == DEV_AUTH_WAIT) || (_dev_state == DEV_INDUCT))
     {
       dbg_println("NO_CONN");
       _dev_state =  DEV_NO_CONN;
@@ -425,6 +468,28 @@ boolean set_dev_state(dev_state_t new_state)
       ret = false;
     break;
 
+  case DEV_INDUCT:
+    if (_dev_state != DEV_ACTIVE || !_can_induct)
+      ret = false;
+    else
+    {
+      send_action("COMPLETE", "0");      
+      _inductor_card = _card_number;
+      digitalWrite(PIN_RELAY, LOW);
+      _dev_state = DEV_INDUCT;
+    }
+    break;
+    
+  case DEV_INDUCT_WAIT:
+    if (_dev_state != DEV_INDUCT)
+      ret = false;
+    else
+    {
+      _dev_state = DEV_INDUCT_WAIT;
+      digitalWrite(PIN_INDUCT_LED, HIGH);
+    }
+    break;      
+
   default:
     ret = false;
     break;
@@ -436,21 +501,19 @@ boolean set_dev_state(dev_state_t new_state)
 void poll_rfid()
 {
   static MFRC522::Uid card;	
-  static unsigned long authd_card_last_seen = 0; // How long ago was the card used to active the tool last see
-  static boolean authd_card_present = false;
-  
+
   char rfid_serial[20];
 
   byte *pCard_number = (byte*)&_card_number;
 
-  if ((_dev_state != DEV_IDLE) && (_dev_state != DEV_ACTIVE))
+  if ((_dev_state != DEV_IDLE) && (_dev_state != DEV_ACTIVE) && (_dev_state != DEV_INDUCT))
     return;
 
   // If idle, poll for any/new card
   if (_dev_state == DEV_IDLE)
   {
     int tt_len; // tool topic string length
-    authd_card_present = false;
+    _authd_card_present = false;
     memset(&card, 0, sizeof(card));
 
     if (!_rfid_reader.PICC_IsNewCardPresent())
@@ -476,15 +539,15 @@ void poll_rfid()
     // Keep a copy of the card ID we're auth'ing
     memcpy(&card, &_rfid_reader.uid, sizeof(card));
 
-    authd_card_last_seen = millis();
-    authd_card_present = true;
+    _authd_card_last_seen = millis();
+    _authd_card_present = true;
 
     set_dev_state(DEV_AUTH_WAIT);
   }
-  else /* ACTIVE */
+  else if (_dev_state == DEV_ACTIVE)
   {
     // If we've seen the card in the last <ACTIVE_POLL_FREQ> ms, don't bother checking for it
-    if (millis()-authd_card_last_seen < ACTIVE_POLL_FREQ)
+    if (millis()-_authd_card_last_seen < ACTIVE_POLL_FREQ)
       return;
 
     dbg_println("Poll for auth'd card");
@@ -505,8 +568,8 @@ void poll_rfid()
         if (match)
         {
           // auth'd card found - reset card last seen time and return
-          authd_card_last_seen = millis();
-          authd_card_present = true;
+          _authd_card_last_seen = millis();
+          _authd_card_present = true;
           dbg_println("Card found");
           return;
         }
@@ -516,17 +579,63 @@ void poll_rfid()
         }
       }
     }
+    _authd_card_present = false;
 
     // To get here, we've polled for the auth'd card, but not found it.
     // If we're now beyond the preset session timout, disable tool by
     // switching back to IDLE state; otherwise... wait some more.
-    if ((millis() - authd_card_last_seen) > TIMEOUT_SES)
+    if ((millis() - _authd_card_last_seen) > TIMEOUT_SES)
     {
       send_action("INFO", "Session timeout!");
       set_dev_state(DEV_IDLE);
       dbg_println("ses to->idle");
     }  
   } //end if active   
+  else if (_dev_state == DEV_INDUCT)
+  {
+    // get card other than the inductors card
+    // Poll for card 
+    if (_rfid_reader.PICC_IsNewCardPresent())
+    {
+      if (_rfid_reader.PICC_ReadCardSerial())      
+      {
+        unsigned long new_card_number;
+        byte *pNewCard_number = (byte*)&new_card_number;
+    
+        // Convert 4x bytes received to long (4 bytes)
+        for (int i = 3; i >= 0; i--) 
+          *(pNewCard_number++) = _rfid_reader.uid.uidByte[i];
+          
+       if (new_card_number == _inductor_card)
+       {
+         _authd_card_present = true;
+       }
+       else
+       {
+         // Card seen that isn't the inductors card
+         induct_member(new_card_number, _inductor_card);
+       }
+      }
+      else
+        _authd_card_present = false;
+    }
+    else
+      _authd_card_present = false;
+  }
+}
+
+int induct_member(unsigned long inductee, unsigned long inductor)
+{
+  char buf[40]="";
+
+  // Send induct message to server
+  sprintf(buf, "%lu:%lu", inductor, inductee);
+  send_action("INDUCT", buf);
+  
+  // Set state to waiting
+  set_dev_state(DEV_INDUCT_WAIT);
+  
+  return 0;
 }
 
 void check_buttons()
@@ -534,17 +643,18 @@ void check_buttons()
   if (_signoff_button_pushed)
   {
     _signoff_button_pushed = false;
-    set_dev_state(DEV_IDLE);
+  
+    // If the card is still on the reader, don't signoff as we'll sign straight back on again after it's read
+    if ((!_authd_card_present) && (millis()-_authd_card_last_seen > 400))
+      set_dev_state(DEV_IDLE);
   }
   
   if (_induct_button_pushed)
   {
     _induct_button_pushed = false;
-    if (_can_induct)
+    if ((_can_induct) && (_dev_state == DEV_ACTIVE))
     {
-      
-      
-      
+      set_dev_state(DEV_INDUCT); 
     }
   }
 
