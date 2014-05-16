@@ -92,9 +92,9 @@ unsigned long _last_rejected_read = 0;
 unsigned long _card_number;
 boolean _authd_card_present = false;
 unsigned long _authd_card_last_seen = 0; // How long ago was the card used to active the tool last see
-
 unsigned long _inductor_card = 0;
-
+boolean _just_inducted = false; // used to ensure that when a member is inducted, they're not immiedaley signed on. Instead require the card to be removed (so we see no card), before allowing it to be used to sign on 
+int _rfid_polls_without_card=0;
 char tool_topic[20+40+10+4]; // name + _base_topic + action + delimiters + terminator
 
 /**************************************************** 
@@ -154,7 +154,9 @@ void callbackMQTT(char* topic, byte* payload, unsigned int length)
     if (strcmp(buf, "ISUC") == 0) // induct success
     {
       // Induction complete - go back to idle
-      set_dev_state(DEV_IDLE);
+      set_dev_state(DEV_IDLE);      
+      _just_inducted = true;
+      _rfid_polls_without_card = 0;
     }
     
     if (strcmp(buf, "IFAL") == 0) // induct failed
@@ -162,10 +164,7 @@ void callbackMQTT(char* topic, byte* payload, unsigned int length)
       // Induct failed (e.g. unknown card). Go back to DEV_INDUCT from INDUCT_WAIT
       set_dev_state(DEV_INDUCT);
     }
-
   }
-
-
 
 } // end void callback(char* topic, byte* payload,int length)
 
@@ -303,13 +302,13 @@ void setup()
   digitalWrite(PIN_SIGNOFF_BUTTON, HIGH); 
 
 
-  dbg_println(F("Init LCD"));
+  // dbg_println(F("Init LCD"));
   // lcd.init();
-  //  lcd.backlight();
-  //  lcd.home();
-  //  lcd.print(F("Nottinghack note    "));
+  // lcd.backlight();
+  // lcd.home();
+  // lcd.print(F("Nottinghack note    "));
   // lcd.setCursor(0, 1);
-  //  lcd.print(F("acceptor v0.01....  "));
+  // lcd.print(F("acceptor v0.01....  "));
 
   dbg_println(F("Init SPI"));
   SPI.begin();
@@ -387,7 +386,6 @@ void induct_loop()
       }
     }
   }
-  
 }
 
 void loop()
@@ -500,9 +498,9 @@ boolean set_dev_state(dev_state_t new_state)
 
 void poll_rfid()
 {
-  static MFRC522::Uid card;	
-
+  static MFRC522::Uid card;	 
   char rfid_serial[20];
+  boolean got_card = false;
 
   byte *pCard_number = (byte*)&_card_number;
 
@@ -516,11 +514,32 @@ void poll_rfid()
     _authd_card_present = false;
     memset(&card, 0, sizeof(card));
 
-    if (!_rfid_reader.PICC_IsNewCardPresent())
+    // Look for RFID card
+    if (_rfid_reader.PICC_IsNewCardPresent())
+    {
+      if (_rfid_reader.PICC_ReadCardSerial())
+      {
+        got_card=true;     
+      }
+    }
+    
+    // If there's been no card present for the last 10 polls, clear the just inducted flag
+    if ((_rfid_polls_without_card > 10) && _just_inducted)
+      _just_inducted = false;
+    
+    if (got_card)
+    {
+      _rfid_polls_without_card=0;
+    }
+    else
+    {
+      _rfid_polls_without_card++;
       return;
-
-    if (!_rfid_reader.PICC_ReadCardSerial())
-      return;      
+    }
+    
+    // If someone just this moment been inducted, give them a chance to remove their card before signing on 
+   if (_just_inducted)
+     return;
 
     // Convert 4x bytes received to long (4 bytes)
     for (int i = 3; i >= 0; i--) 
@@ -557,6 +576,7 @@ void poll_rfid()
     {
       if (_rfid_reader.PICC_ReadCardSerial())      
       {
+        _rfid_polls_without_card=0;
         // card found & serial read - see if it's for the auth'd card
         boolean match = true;
         // Test if it's the auth'd card
@@ -599,6 +619,7 @@ void poll_rfid()
     {
       if (_rfid_reader.PICC_ReadCardSerial())      
       {
+        _rfid_polls_without_card=0;
         unsigned long new_card_number;
         byte *pNewCard_number = (byte*)&new_card_number;
     
@@ -612,7 +633,7 @@ void poll_rfid()
        }
        else
        {
-         // Card seen that isn't the inductors card
+         // Card seen that isn't the inductors card, so send induction request to server
          induct_member(new_card_number, _inductor_card);
        }
       }
