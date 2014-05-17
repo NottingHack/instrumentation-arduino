@@ -34,7 +34,7 @@
  * Target board = Arduino Uno, Arduino version = 1.0.1
  *
  * Expects to be connected to:
- *   - I2C 20x4 LCD (HCARDU0023) - OPTIONAL
+ *   - I2C 16x2 LCD (HCARDU0023)) - OPTIONAL
  *   - SPI RFID reader (HCMODU0016)
  *   - Wiznet W5100 based Ethernet shield
  * Pin assignments are in Config.h
@@ -43,12 +43,12 @@
  *
  * Additional required libraries:
  *   - PubSubClient                       - https://github.com/knolleary/pubsubclient
- *   - HCARDU0023_LiquidCrystal_I2C_V2_1  - http://forum.hobbycomponents.com/viewtopic.php?f=39&t=1368
+ *   - HCARDU0023_LiquidCrystal_I2C_V2_1  - http://forum.hobbycomponents.com/viewtopic.php?f=39&t=1125
  *   - rfid                               - https://github.com/miguelbalboa/rfid
  */
 
 #include <Wire.h>
-//#include <LiquidCrystal_I2C.h>
+#include <LiquidCrystal_I2C.h>
 #include <SPI.h>
 #include <Ethernet.h>
 #include <PubSubClient.h>
@@ -66,9 +66,12 @@ void poll_rfid();
 void dbg_println(const __FlashStringHelper *n);
 void dbg_println(const char *msg);
 
+void lcd_display(const __FlashStringHelper *n, short line = 0, boolean wipe_display = true);
+void lcd_display(char *msg, short line = 0, boolean wipe_display = true);
+
 EthernetClient _ethClient;
 PubSubClient _client(server, MQTT_PORT, callbackMQTT, _ethClient);
-//LiquidCrystal_I2C lcd(0x27,20,4);  // 20x4 display at address 0x27
+LiquidCrystal_I2C lcd(0x27,16,2);  // 16x2 display at address 0x27
 MFRC522 _rfid_reader(PIN_RFID_SS, PIN_RFID_RST);
 
 serial_state_t _serial_state;
@@ -96,6 +99,8 @@ unsigned long _inductor_card = 0;
 boolean _just_inducted = false; // used to ensure that when a member is inducted, they're not immiedaley signed on. Instead require the card to be removed (so we see no card), before allowing it to be used to sign on 
 int _rfid_polls_without_card=0;
 char tool_topic[20+40+10+4]; // name + _base_topic + action + delimiters + terminator
+unsigned long _last_state_change = 0;
+boolean _disp_active_wiped = false;
 
 /**************************************************** 
  * callbackMQTT
@@ -126,17 +131,25 @@ void callbackMQTT(char* topic, byte* payload, unsigned int length)
     strncpy(buf, topic+strlen(tool_topic)+1, sizeof(buf));
     buf[sizeof(buf)-1] = '\0';
 
-    // For the GRANT message, the payload should be either "U", "I" or "M" (User, Inductor or Maintainer) 
+    // For the GRANT message, the first character of the payload should be 
+    // either "U", "I" or "M" (User, Inductor or Maintainer). The reset is
+    // a message to be displayed on the LCD
     if (strcmp(buf, "GRANT") == 0)
     {
-      if (length < 1)
+      if (length < 2)
         return;
+        
+      // Ensure message/string is null terminated
+      payload[length] = '\0';
         
       // Check if member can induct others. For now, maintainer & inductor's are treated equally
       if ((payload[0] == 'I') || (payload[0] == 'M'))
         _can_induct = true;
       else 
         _can_induct = false;      
+      
+      // Show rest of received message on LCD
+      lcd_display_mqtt((char*)payload+1);
       
       // Enable tool!
       set_dev_state(DEV_ACTIVE);
@@ -168,23 +181,20 @@ void callbackMQTT(char* topic, byte* payload, unsigned int length)
 
 } // end void callback(char* topic, byte* payload,int length)
 
-void mqtt_rx_display(char *payload)
+void lcd_display_mqtt(char *payload)
 {
   // Display payload on LCD display - \n in string seperates line 1+2.
   char ln1[LCD_WIDTH+1];
   char ln2[LCD_WIDTH+1];
   char *payPtr, *lnPtr;
-
-  // Skip over "DISP:"
-  payload += sizeof("DISP");
-
+  
   payPtr = (char*)payload;
 
   memset(ln1, 0, sizeof(ln1));
   memset(ln2, 0, sizeof(ln2)); 
 
   /* Clear display */
-  //lcd.clear();
+  lcd.clear();
 
   lnPtr = ln1;
   for (int i=0; i < LCD_WIDTH; i++)
@@ -213,13 +223,14 @@ void mqtt_rx_display(char *payload)
     *lnPtr++ = *payPtr++;
   }
 
+  lcd.clear();
   /* Output 1st line */
-  // lcd.setCursor(0, 2);
-  //lcd.print(ln1); 
+  lcd.setCursor(0, 0);
+  lcd.print(ln1); 
 
   /* Output 2nd line */
-  //  lcd.setCursor(0, 3);
-  // lcd.print(ln2);
+  lcd.setCursor(0, 1);
+  lcd.print(ln2);
 }
 
 /**************************************************** 
@@ -301,15 +312,6 @@ void setup()
   digitalWrite(PIN_INDUCT_BUTTON, HIGH);
   digitalWrite(PIN_SIGNOFF_BUTTON, HIGH); 
 
-
-  // dbg_println(F("Init LCD"));
-  // lcd.init();
-  // lcd.backlight();
-  // lcd.home();
-  // lcd.print(F("Nottinghack note    "));
-  // lcd.setCursor(0, 1);
-  // lcd.print(F("acceptor v0.01....  "));
-
   dbg_println(F("Init SPI"));
   SPI.begin();
 
@@ -329,6 +331,13 @@ void setup()
   _dev_name[20] = '\0';
 
   sprintf(tool_topic, "%s/%s", _base_topic, _dev_name);
+
+
+  dbg_println(F("Init LCD"));
+  lcd.init();
+  lcd.backlight();
+  lcd_display(F("Tools ctl v0.2"));
+  lcd_display(_dev_name,1, false);
 
   dbg_println(F("Start Ethernet"));
   Ethernet.begin(_mac, _ip);
@@ -407,7 +416,16 @@ void loop()
   check_buttons();
   
   induct_loop();
-
+  
+  // If tool's been active for more than 5 seconds, wipe the second line of the LCD
+  // (this shows pledged time remaining, but doesn't count down)
+  if ((_dev_state == DEV_ACTIVE) && ((millis()-_last_state_change) > 5000) && (!_disp_active_wiped))
+  {
+    _disp_active_wiped = true;
+    lcd.setCursor(0, 1);
+    lcd.print(F("                "));
+  }
+    
 } // end void loop()
 
 
@@ -423,6 +441,8 @@ boolean set_dev_state(dev_state_t new_state)
       dbg_println("NO_CONN");
       _dev_state =  DEV_NO_CONN;
       digitalWrite(PIN_SIGNOFF_LIGHT, LOW);
+      lcd_display(F("No network"));
+      lcd_display(F("conection!"), 1, false);
     }
     else
       ret = false;
@@ -437,6 +457,7 @@ boolean set_dev_state(dev_state_t new_state)
       send_action("COMPLETE", "0");
     _dev_state =  DEV_IDLE;
     dbg_println("IDLE");
+    lcd_display(F("Scan RFID card"));
     break;
 
   case DEV_AUTH_WAIT:
@@ -446,6 +467,7 @@ boolean set_dev_state(dev_state_t new_state)
       _auth_start = millis();
       digitalWrite(PIN_SIGNOFF_LIGHT, HIGH); 
       dbg_println("AUTH_WAIT");
+      lcd_display(F("Checking..."));
     }
     else
       ret = false;
@@ -458,7 +480,8 @@ boolean set_dev_state(dev_state_t new_state)
       digitalWrite(PIN_RELAY, HIGH);
       _tool_start_time = millis();
       dbg_println("ACTIVE");
-
+      
+      _disp_active_wiped = false;
       if (_can_induct)
         digitalWrite(PIN_INDUCT_LED, HIGH);
     }
@@ -475,6 +498,8 @@ boolean set_dev_state(dev_state_t new_state)
       _inductor_card = _card_number;
       digitalWrite(PIN_RELAY, LOW);
       _dev_state = DEV_INDUCT;
+      lcd_display(F("Scan inductees"));
+      lcd_display(F("RFID card....."), 1, false);
     }
     break;
     
@@ -485,6 +510,7 @@ boolean set_dev_state(dev_state_t new_state)
     {
       _dev_state = DEV_INDUCT_WAIT;
       digitalWrite(PIN_INDUCT_LED, HIGH);
+      lcd_display(F("Ok, recording..."));   
     }
     break;      
 
@@ -493,6 +519,9 @@ boolean set_dev_state(dev_state_t new_state)
     break;
   }
 
+  if (ret)
+    _last_state_change = millis();
+    
   return ret;
 }
 
@@ -537,7 +566,7 @@ void poll_rfid()
       return;
     }
     
-    // If someone just this moment been inducted, give them a chance to remove their card before signing on 
+    // If someone's just this moment been inducted, give them a chance to remove their card before signing on 
    if (_just_inducted)
      return;
 
@@ -666,7 +695,8 @@ void check_buttons()
     _signoff_button_pushed = false;
   
     // If the card is still on the reader, don't signoff as we'll sign straight back on again after it's read
-    if ((!_authd_card_present) && (millis()-_authd_card_last_seen > 400))
+    if (( (!_authd_card_present) && (millis()-_authd_card_last_seen > 400)) || 
+          (_dev_state == DEV_AUTH_WAIT) )
       set_dev_state(DEV_IDLE);
   }
   
@@ -679,8 +709,6 @@ void check_buttons()
     }
   }
 
-  /* TODO: Induct button */
-// Clear  _last_rejected_read
 }
 
 // Publish <msg> to topic "<tool_topic>/<act>"
@@ -691,6 +719,32 @@ void send_action(char *act, char *msg)
   strcpy(tool_topic+tt_len+1, act);
   _client.publish(tool_topic, msg);
   tool_topic[tt_len] = '\0';
+}
+
+void lcd_display(const __FlashStringHelper *n, short line, boolean wipe_display)
+{
+  uint8_t c;
+  byte payload[LCD_WIDTH+1];
+  char *pn = (char*)n;
+  int count=0;
+    
+  memset(payload, 0, sizeof(payload));
+  
+  while (((c = pgm_read_byte_near(pn++)) != 0) && (count < sizeof(payload)))
+    payload[count++] = c;
+
+  lcd_display((char*)payload, line, wipe_display);
+}
+
+  
+void lcd_display(char *msg, short line, boolean wipe_display)
+{ 
+  if (wipe_display)
+    lcd.clear();
+    
+  lcd.setCursor(0, line);
+
+  lcd.print(msg);
 }
 
 void dbg_println(const __FlashStringHelper *n)
