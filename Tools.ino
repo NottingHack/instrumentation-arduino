@@ -101,6 +101,7 @@ int _rfid_polls_without_card=0;
 char tool_topic[20+40+10+4]; // name + _base_topic + action + delimiters + terminator
 unsigned long _last_state_change = 0;
 boolean _disp_active_wiped = false;
+boolean _deny_reason_displed = false;
 
 /**************************************************** 
  * callbackMQTT
@@ -159,9 +160,14 @@ void callbackMQTT(char* topic, byte* payload, unsigned int length)
     {
       // Card's been rejected. Go back to idle.
       set_dev_state(DEV_IDLE);
-      dbg_println("Card rejected!");
+      dbg_println(F("Card rejected!"));
       _last_rejected_card = _card_number;
       _last_rejected_read = millis();
+      
+      // Show message on LCD
+      payload[length] = '\0';
+      lcd_display((char*)payload);     
+     _deny_reason_displed = true; 
     } 
     
     if (strcmp(buf, "ISUC") == 0) // induct success
@@ -176,6 +182,9 @@ void callbackMQTT(char* topic, byte* payload, unsigned int length)
     {
       // Induct failed (e.g. unknown card). Go back to DEV_INDUCT from INDUCT_WAIT
       set_dev_state(DEV_INDUCT);
+      payload[length] = '\0';
+      lcd_display((char*)payload);
+      Serial.println((char*)payload);
     }
   }
 
@@ -281,7 +290,7 @@ void checkMQTT()
       {
         send_action("RESET", "IDLE");
         set_dev_state(DEV_IDLE);
-        dbg_println("Reset->idle");  
+        dbg_println(F("Reset->idle"));  
       }
     } 
     else
@@ -425,6 +434,12 @@ void loop()
     lcd.setCursor(0, 1);
     lcd.print(F("                "));
   }
+  
+  if ((_dev_state == DEV_IDLE) && ((millis()-_last_state_change) > 5000) && _deny_reason_displed)
+  {
+    _deny_reason_displed = false;
+    lcd_display(F("Scan RFID card"));
+  }
     
 } // end void loop()
 
@@ -456,7 +471,7 @@ boolean set_dev_state(dev_state_t new_state)
     if (_dev_state == DEV_ACTIVE)
       send_action("COMPLETE", "0");
     _dev_state =  DEV_IDLE;
-    dbg_println("IDLE");
+    dbg_println(F("IDLE"));
     lcd_display(F("Scan RFID card"));
     break;
 
@@ -479,7 +494,7 @@ boolean set_dev_state(dev_state_t new_state)
       _dev_state = DEV_ACTIVE;
       digitalWrite(PIN_RELAY, HIGH);
       _tool_start_time = millis();
-      dbg_println("ACTIVE");
+      dbg_println(F("ACTIVE"));
       
       _disp_active_wiped = false;
       if (_can_induct)
@@ -490,16 +505,19 @@ boolean set_dev_state(dev_state_t new_state)
     break;
 
   case DEV_INDUCT:
-    if (_dev_state != DEV_ACTIVE || !_can_induct)
+    if ((_dev_state != DEV_ACTIVE && _dev_state != DEV_INDUCT_WAIT) || !_can_induct)
       ret = false;
     else
     {
-      send_action("COMPLETE", "0");      
-      _inductor_card = _card_number;
-      digitalWrite(PIN_RELAY, LOW);
+      if (_dev_state == DEV_ACTIVE)
+      {
+        send_action("COMPLETE", "0");      
+        _inductor_card = _card_number;
+        digitalWrite(PIN_RELAY, LOW);        
+        lcd_display(F("Scan inductees"));
+        lcd_display(F("RFID card....."), 1, false);
+      }
       _dev_state = DEV_INDUCT;
-      lcd_display(F("Scan inductees"));
-      lcd_display(F("RFID card....."), 1, false);
     }
     break;
     
@@ -510,7 +528,7 @@ boolean set_dev_state(dev_state_t new_state)
     {
       _dev_state = DEV_INDUCT_WAIT;
       digitalWrite(PIN_INDUCT_LED, HIGH);
-      lcd_display(F("Ok, recording..."));   
+      //lcd_display(F("Ok, recording..."));   
     }
     break;      
 
@@ -598,7 +616,7 @@ void poll_rfid()
     if (millis()-_authd_card_last_seen < ACTIVE_POLL_FREQ)
       return;
 
-    dbg_println("Poll for auth'd card");
+    dbg_println(F("Poll for auth'd card"));
 
     // Poll for card 
     if (_rfid_reader.PICC_IsNewCardPresent())

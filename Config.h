@@ -51,7 +51,7 @@
 #define EEPROM_NAME         50 // 20 bytes   e.g. "laser"
 
 // IP of MQTT server
-byte server[] = { 192, 168, 1, 67 };
+byte server[] = { 192, 168, 1, 50 };
 #define MQTT_PORT 1883
 
 #define ACTIVE_POLL_FREQ 1000 // Frequency (in ms) to poll for RFID card when device active (i.e. how often to recheck it's present)
