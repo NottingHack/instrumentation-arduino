@@ -51,7 +51,7 @@
 #define EEPROM_NAME         50 // 20 bytes   e.g. "laser"
 
 // IP of MQTT server
-byte server[] = { 192, 168, 1, 50 };
+byte server[] = { 192, 168, 1, 67 };
 #define MQTT_PORT 1883
 
 #define ACTIVE_POLL_FREQ 1000 // Frequency (in ms) to poll for RFID card when device active (i.e. how often to recheck it's present)
@@ -71,6 +71,7 @@ byte server[] = { 192, 168, 1, 50 };
 
 #define TIMEOUT_SES  (1000*15) // 15s - Session timout - how long to wait without seeing the card before disabling tool
 
+#define INDUCT_TIMEOUT 30     // How long in seconds to wait for card when in the induct state
 #define INDUCT_FLASH_FREQ 250 // how fast the induct led flashed after induct button pushed (lower is faster)
 
 // Serial/config menu current position

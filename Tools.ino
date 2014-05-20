@@ -403,6 +403,13 @@ void induct_loop()
         digitalWrite(PIN_INDUCT_LED, LOW);
       }
     }
+    
+    // Don't stay in the induct state forever if no card is presented
+    if ((millis() - _last_state_change) > INDUCT_TIMEOUT*1000)
+    {
+      dbg_println(F("Induct timeout"));
+      set_dev_state(DEV_IDLE);
+    }
   }
 }
 
@@ -426,20 +433,7 @@ void loop()
   
   induct_loop();
   
-  // If tool's been active for more than 5 seconds, wipe the second line of the LCD
-  // (this shows pledged time remaining, but doesn't count down)
-  if ((_dev_state == DEV_ACTIVE) && ((millis()-_last_state_change) > 5000) && (!_disp_active_wiped))
-  {
-    _disp_active_wiped = true;
-    lcd.setCursor(0, 1);
-    lcd.print(F("                "));
-  }
-  
-  if ((_dev_state == DEV_IDLE) && ((millis()-_last_state_change) > 5000) && _deny_reason_displed)
-  {
-    _deny_reason_displed = false;
-    lcd_display(F("Scan RFID card"));
-  }
+  lcd_loop();
     
 } // end void loop()
 
@@ -543,6 +537,36 @@ boolean set_dev_state(dev_state_t new_state)
   return ret;
 }
 
+void lcd_loop()
+{
+  static unsigned long last_time_display = 0;
+  
+  // If tool's been active for more than 5 seconds, wipe the second line of the LCD
+  // (this shows pledged time remaining, but doesn't count down)
+  if ((_dev_state == DEV_ACTIVE) && ((millis()-_last_state_change) > 5000) && (!_disp_active_wiped))
+  {
+    _disp_active_wiped = true;
+    lcd.setCursor(0, 1);
+    lcd.print(F("                "));
+  }
+  
+  // If the tools been active for more than 5 seconds, show total active time & refresh every second.
+  if ((_dev_state == DEV_ACTIVE) && _disp_active_wiped && (millis()-last_time_display > 1000))
+  {
+    last_time_display = millis();
+    lcd.setCursor(0, 1);
+    lcd.print(time_diff_to_str(_last_state_change, millis()));
+  }
+  
+  // The last card scanned was rejected, the LCD will be showing the reason. If more than 5
+  // seconds have past, clear the reason.
+  if ((_dev_state == DEV_IDLE) && ((millis()-_last_state_change) > 5000) && _deny_reason_displed)
+  {
+    _deny_reason_displed = false;
+    lcd_display(F("Scan RFID card"));
+  }
+}
+
 void poll_rfid()
 {
   static MFRC522::Uid card;	 
@@ -637,12 +661,12 @@ void poll_rfid()
           // auth'd card found - reset card last seen time and return
           _authd_card_last_seen = millis();
           _authd_card_present = true;
-          dbg_println("Card found");
+          dbg_println(F("Card found"));
           return;
         }
         else
         {
-          dbg_println("Unexpect card found");
+          dbg_println(F("Unexpect card found"));
         }
       }
     }
@@ -655,7 +679,7 @@ void poll_rfid()
     {
       send_action("INFO", "Session timeout!");
       set_dev_state(DEV_IDLE);
-      dbg_println("ses to->idle");
+      dbg_println(F("ses to->idle"));
     }  
   } //end if active   
   else if (_dev_state == DEV_INDUCT)
@@ -738,6 +762,24 @@ void send_action(char *act, char *msg)
   _client.publish(tool_topic, msg);
   tool_topic[tt_len] = '\0';
 }
+
+char *time_diff_to_str(unsigned long start_time, unsigned long end_time)
+{
+  unsigned int seconds = 0;
+  unsigned int minutes = 0;
+  unsigned int hours   = 0;
+  unsigned long total_millis = end_time - start_time;
+  unsigned long total_seconds = total_millis / 1000;
+  static char time_str[17]  = "";
+
+  hours = total_seconds / 60 / 60;
+  minutes = (total_seconds - (hours*60*60)) / 60;
+  seconds = total_seconds - (hours*60*60) - (minutes*60);
+
+  sprintf(time_str, "Session %.2d:%.2d:%.2d", hours, minutes, seconds);
+  return time_str;
+}
+
 
 void lcd_display(const __FlashStringHelper *n, short line, boolean wipe_display)
 {
