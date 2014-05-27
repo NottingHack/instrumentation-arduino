@@ -88,6 +88,7 @@ byte _ip[4];
 unsigned long _tool_start_time;
 unsigned long _auth_start;
 volatile boolean _induct_button_pushed;
+volatile unsigned long _induct_button_pushed_time;
 volatile boolean _signoff_button_pushed;
 boolean _can_induct;
 unsigned long _last_rejected_card = 0;
@@ -102,6 +103,7 @@ char tool_topic[20+40+10+4]; // name + _base_topic + action + delimiters + termi
 unsigned long _last_state_change = 0;
 boolean _disp_active_wiped = false;
 boolean _deny_reason_displed = false;
+unsigned long _last_rfid_reset=0;
 
 /**************************************************** 
  * callbackMQTT
@@ -360,6 +362,7 @@ void setup()
 
   _signoff_button_pushed = false;
   _induct_button_pushed = false;
+  _induct_button_pushed_time = 0;
 
   attachInterrupt(0, signoff_button, FALLING); // int0 = PIN_SIGNOFF_BUTTON
   attachInterrupt(1, induct_button , FALLING); // int1 = PIN_INDUCT_BUTTON 
@@ -379,6 +382,7 @@ void signoff_button()
 
 void induct_button()
 {
+  _induct_button_pushed_time = millis();
   _induct_button_pushed = true;
 }
 
@@ -540,6 +544,14 @@ boolean set_dev_state(dev_state_t new_state)
 void lcd_loop()
 {
   static unsigned long last_time_display = 0;
+  
+
+  if ((millis() - _last_rfid_reset) > RFID_RESET_INTERVAL)
+  {
+    _last_rfid_reset = millis();
+    _rfid_reader.PCD_Init();
+    return;
+  }
   
   // If tool's been active for more than 5 seconds, wipe the second line of the LCD
   // (this shows pledged time remaining, but doesn't count down)
@@ -744,10 +756,14 @@ void check_buttons()
   
   if (_induct_button_pushed)
   {
-    _induct_button_pushed = false;
-    if ((_can_induct) && (_dev_state == DEV_ACTIVE))
+    if (millis() - _induct_button_pushed_time > 50)
     {
-      set_dev_state(DEV_INDUCT); 
+      _induct_button_pushed = false;
+      
+      if ( (_can_induct) && (_dev_state == DEV_ACTIVE) && (digitalRead(PIN_INDUCT_BUTTON) == LOW) )
+      {
+        set_dev_state(DEV_INDUCT); 
+      }
     }
   }
 
