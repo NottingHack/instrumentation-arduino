@@ -608,7 +608,7 @@ void poll_rfid()
     return;
 
   // Convert 4x bytes received to long (4 bytes)
-  for (int i = 3; i >= 0; i--) 
+  for (int i = rfid_reader.uid.size-1; i >= 0; i--) 
     *(pCard_number++) = rfid_reader.uid.uidByte[i];
 
   ultoa(card_number, rfid_serial, 10);
