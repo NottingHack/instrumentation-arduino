@@ -34,7 +34,7 @@
 #define PIN_CANCEL_LIGHT  3
 //      Ethernet          4
 #define PIN_RFID_RST      6
-#define PIN_RFID_SS       7
+#define PIN_RFID_SS       7 // labeled SDA on RFID
 #define PIN_NOTE_TX       8
 #define PIN_NOTE_RX       9
 //      Ethernet SS      10
@@ -74,7 +74,7 @@ byte server[] = { 192, 168, 0, 1 };
 #define DEBUG_SERIAL
 
 // buffer size
-#define DMSG  50
+#define DMSG  100
 
 #define TIMEOUT_COMS (1000*10) // 10s - timeout waiting for server/note acceptor.
 #define TIMEOUT_SES  (1000*30) // 30s - Sesion timout - (STATE_ACCEPT - waiting for user)
@@ -87,5 +87,5 @@ enum state_t
   STATE_ACCEPT,           // Server responded ok, RFID reader disabled, note acceptor enabled
   STATE_ACCEPT_NET_WAIT,  // Note taken in escrow, waiting for server to give go-ahead to accept
   STATE_ACCEPT_NOTE_WAIT, // Server given go-ahead, waiting for note acceptor to confirm note accepted
-  STATE_JAMMED            // Note acceptor report a jam. No return from this state without reset.
+  STATE_JAMMED            // Note acceptor reported a jam. No return from this state without reset.
 };

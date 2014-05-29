@@ -81,7 +81,7 @@ char pmsg[DMSG];
 unsigned long card_number;
 char rfid_serial[20];
 char tran_id[10]; // transaction id
-char mqtt_rx_buf[30];
+char mqtt_rx_buf[45];
 unsigned long state_entered;
 
 
@@ -310,7 +310,7 @@ void mqtt_rx_display(char *payload)
 
   /* Output 2nd line */
   lcd.setCursor(0, 3);
-  lcd.print(ln2);
+  lcd.print(ln2); 
 }
 
 /**************************************************** 
@@ -382,6 +382,7 @@ void setup()
   rfid_reader.PCD_Init();
 
   // Start MQTT and say we are alive
+  dbg_println(F("Check MQTT"));
   checkMQTT();
 
   delay(100);
@@ -584,7 +585,8 @@ void message_handler(uint8_t cmd, uint8_t val)
 
     // reset timeout
     state_entered = millis();
-  } else if (cmd == NV4_STACKER_FULL) /* jammed */
+  } else if ((cmd == NV4_STACKER_FULL) || /* jammed */
+             (cmd == NV4_NOTE_TAKEN))     /* Note swallowed that shouldn't have been... */
   {
     set_state(STATE_JAMMED);
     dbg_println(F("ERROR: Jam reported!"));
