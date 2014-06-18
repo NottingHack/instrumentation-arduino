@@ -625,7 +625,7 @@ void poll_rfid()
      return;
 
     // Convert 4x bytes received to long (4 bytes)
-    for (int i = _rfid_reader.uid.size-1; i >= 0; i--) 
+    for (int n=0, i = _rfid_reader.uid.size-1; (i >= 0) && (n < 4); i--, n++) 
       *(pCard_number++) = _rfid_reader.uid.uidByte[i];
 
     ultoa(_card_number, rfid_serial, 10);
@@ -662,8 +662,8 @@ void poll_rfid()
         _rfid_polls_without_card=0;
         // card found & serial read - see if it's for the auth'd card
         boolean match = true;
-        // Test if it's the auth'd card
-        for (int i = _rfid_reader.uid.size-1; i >= 0; i--) 
+        // Convert (last) 4 bytes of cards UID to long (4 bytes)
+        for (int n=0, i = _rfid_reader.uid.size-1; (i >= 0) && (n < 4); i--, n++)  
         {          
           if (_rfid_reader.uid.uidByte[i] != card.uidByte[i])
             match = false;
@@ -706,8 +706,8 @@ void poll_rfid()
         unsigned long new_card_number;
         byte *pNewCard_number = (byte*)&new_card_number;
     
-        // Convert 4x bytes received to long (4 bytes)
-        for (int i = _rfid_reader.uid.size-1; i >= 0; i--) 
+        // Convert (last) 4 bytes of cards UID to long (4 bytes)
+        for (int n=0, i = _rfid_reader.uid.size-1; (i >= 0) && (n < 4); i--, n++) 
           *(pNewCard_number++) = _rfid_reader.uid.uidByte[i];
           
        if (new_card_number == _inductor_card)
