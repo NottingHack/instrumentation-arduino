@@ -167,7 +167,7 @@ void setup()
 	// Setup Interrupt
 	// let everything else settle
 	delay(100);
-	attachInterrupt(1, doorButton, HIGH);
+	attachInterrupt(1, doorButton, RISING);
 	
 } // end void setup()
 
