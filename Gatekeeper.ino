@@ -377,12 +377,16 @@ void pollDoorBell()
     // clear state
     doorButtonState = DOOR_STATE_NONE;
     
-    // Inner button is connected to this arduino, so publish ring of inner bell
-    client.publish(P_DOOR_BUTTON, DOOR_INNER);
+    delay(10);
+    if (digitalRead(DOOR_BUTTON) == HIGH)
+    {
+      // Inner button is connected to this arduino, so publish ring of inner bell
+      client.publish(P_DOOR_BUTTON, DOOR_INNER);
 
-    digitalWrite(DOOR_BELL, HIGH);
-    delay(DOOR_BELL_LENGTH);
-    digitalWrite(DOOR_BELL, LOW);
+      digitalWrite(DOOR_BELL, HIGH);
+      delay(DOOR_BELL_LENGTH);
+      digitalWrite(DOOR_BELL, LOW);
+    }
 
   } else if(doorButtonState == DOOR_STATE_OUTER)
   {
