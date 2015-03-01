@@ -583,7 +583,6 @@ void poll_rfid()
   // If idle, poll for any/new card
   if (_dev_state == DEV_IDLE)
   {
-    int tt_len; // tool topic string length
     _authd_card_present = false;
     memset(&card, 0, sizeof(card));
 
@@ -769,7 +768,7 @@ void check_buttons()
 }
 
 // Publish <msg> to topic "<tool_topic>/<act>"
-void send_action(char *act, char *msg)
+void send_action(const char *act, char *msg)
 {
   int tt_len = strlen(tool_topic);
   tool_topic[tt_len] = '/';

@@ -24,7 +24,7 @@ void lcd_loop();
 void poll_rfid();
 int induct_member(unsigned long inductee, unsigned long inductor);
 void check_buttons();
-void send_action(char *act, char *msg);
+void send_action(const char *act, char *msg);
 char *time_diff_to_str(unsigned long start_time, unsigned long end_time);
 void dbg_println(const __FlashStringHelper *n);
 void dbg_println(const char *msg);
