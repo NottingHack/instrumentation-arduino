@@ -1,4 +1,3 @@
-
 /*
  * Copyright (c) 2014, Daniel Swann <hs@dswann.co.uk>
  * All rights reserved.
@@ -90,6 +89,7 @@ unsigned long _auth_start;
 volatile boolean _induct_button_pushed;
 volatile unsigned long _induct_button_pushed_time;
 volatile boolean _signoff_button_pushed;
+volatile unsigned long _signoff_button_pushed_time;
 boolean _can_induct;
 unsigned long _last_rejected_card = 0;
 unsigned long _last_rejected_read = 0;
@@ -113,7 +113,7 @@ unsigned long _last_rfid_reset=0;
 void callbackMQTT(char* topic, byte* payload, unsigned int length)
 {
   char buf [30];
-
+  
   // Respond to status requests
   if (!strcmp(topic, S_STATUS))
   {
@@ -361,6 +361,7 @@ void setup()
   checkMQTT();
 
   _signoff_button_pushed = false;
+  _signoff_button_pushed_time = 0;
   _induct_button_pushed = false;
   _induct_button_pushed_time = 0;
 
@@ -377,6 +378,7 @@ void setup()
 
 void signoff_button()
 {
+  _signoff_button_pushed_time = millis();
   _signoff_button_pushed = true;
 }
 
@@ -545,14 +547,13 @@ void lcd_loop()
 {
   static unsigned long last_time_display = 0;
   
-
   if ((millis() - _last_rfid_reset) > RFID_RESET_INTERVAL)
   {
     _last_rfid_reset = millis();
     _rfid_reader.PCD_Init();
     return;
   }
-  
+
   // If tool's been active for more than 5 seconds, wipe the second line of the LCD
   // (this shows pledged time remaining, but doesn't count down)
   if ((_dev_state == DEV_ACTIVE) && ((millis()-_last_state_change) > 5000) && (!_disp_active_wiped))
@@ -600,8 +601,10 @@ void poll_rfid()
     // Look for RFID card
     if (_rfid_reader.PICC_IsNewCardPresent())
     {
+      Serial.println("card present");
       if (_rfid_reader.PICC_ReadCardSerial())
       {
+        Serial.println("GOT CARD");
         got_card=true;     
       }
     }
@@ -630,6 +633,8 @@ void poll_rfid()
 
     ultoa(_card_number, rfid_serial, 10);
     
+    Serial.println("GOT CARD DATA");
+            
     // If the same card has already been rejected in the last 10s, don't bother querying the server again
     if ((_card_number == _last_rejected_card) && ((millis() - _last_rejected_read) < 10000))
       return;
@@ -746,12 +751,17 @@ void check_buttons()
 {
   if (_signoff_button_pushed)
   {
-    _signoff_button_pushed = false;
-  
-    // If the card is still on the reader, don't signoff as we'll sign straight back on again after it's read
-    if (( (!_authd_card_present) && (millis()-_authd_card_last_seen > 400)) || 
-          (_dev_state == DEV_AUTH_WAIT) )
-      set_dev_state(DEV_IDLE);
+    if (millis() - _signoff_button_pushed_time > 50)
+    {
+      _signoff_button_pushed = false;
+    
+      // If the card is still on the reader, don't signoff as we'll sign straight back on again after it's read
+      if (( (!_authd_card_present) && (millis()-_authd_card_last_seen > 1500) && (digitalRead(PIN_SIGNOFF_BUTTON) == LOW)  ) || 
+            (_dev_state == DEV_AUTH_WAIT) )
+            {
+              set_dev_state(DEV_IDLE);
+            }
+    }
   }
   
   if (_induct_button_pushed)

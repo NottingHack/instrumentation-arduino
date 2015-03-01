@@ -55,7 +55,7 @@ byte server[] = { 192, 168, 0, 1 };
 #define MQTT_PORT 1883
 
 #define ACTIVE_POLL_FREQ 1000 // Frequency (in ms) to poll for RFID card when device active (i.e. how often to recheck it's present)
-#define RFID_RESET_INTERVAL 1500
+#define RFID_RESET_INTERVAL 1000
 
 // Status Topic, use to say we are alive or DEAD (will)
 #define S_STATUS "nh/status/req"
