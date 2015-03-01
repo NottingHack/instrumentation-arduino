@@ -50,8 +50,7 @@
 #define EEPROM_BASE_TOPIC   10 // 40 bytes   e.g. "nh/tools/"
 #define EEPROM_NAME         50 // 20 bytes   e.g. "laser"
 
-// IP of MQTT server
-byte server[] = { 192, 168, 0, 1 };
+
 #define MQTT_PORT 1883
 
 #define ACTIVE_POLL_FREQ 1000 // Frequency (in ms) to poll for RFID card when device active (i.e. how often to recheck it's present)
@@ -85,13 +84,5 @@ enum serial_state_t
   SS_SET_TOPIC
 };
 
-// Device states
-enum dev_state_t
-{
-  DEV_NO_CONN,    // No MQTT connection
-  DEV_IDLE,       // Idle - tool powered off, waiting for RFID card
-  DEV_AUTH_WAIT,  // Card presented, waiting for yay/nay response from server
-  DEV_ACTIVE,     // Tool power enabled - RFID string in memory 
-  DEV_INDUCT,     // Waiting for card to add to inducted list
-  DEV_INDUCT_WAIT // Asked server to induct new card, waiting for reply.
-};
+
+

@@ -27,6 +27,19 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include "Arduino.h"
+#include "Config.h"
+#include "Menu.h"
+
+extern char _base_topic[41];
+extern char _dev_name [21];
+
+// MAC / IP address of device
+extern byte _mac[6];
+extern byte _ip[4];
+
+extern serial_state_t _serial_state;
+
 /* Serial based menu configuration - settings saved in EEPROM */
 
 void serial_menu()

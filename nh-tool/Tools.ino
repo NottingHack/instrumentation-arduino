@@ -55,34 +55,23 @@
 #include <EEPROM.h>
 #include <avr/wdt.h> 
 #include "Config.h"
+#include "Tools.h"
+#include "Menu.h"
+
 
 #define LCD_WIDTH 16
 
-void callbackMQTT(char* topic, byte* payload, unsigned int length);
 
-void mqtt_rx_display(char *payload);
-void poll_rfid();
-void dbg_println(const __FlashStringHelper *n);
-void dbg_println(const char *msg);
-
-void lcd_display(const __FlashStringHelper *n, short line = 0, boolean wipe_display = true);
-void lcd_display(char *msg, short line = 0, boolean wipe_display = true);
 
 EthernetClient _ethClient;
 PubSubClient _client(server, MQTT_PORT, callbackMQTT, _ethClient);
 LiquidCrystal_I2C lcd(0x27,16,2);  // 16x2 display at address 0x27
 MFRC522 _rfid_reader(PIN_RFID_SS, PIN_RFID_RST);
 
-serial_state_t _serial_state;
 dev_state_t    _dev_state;
 
 char _pmsg[DMSG];
-char _base_topic[41];
-char _dev_name [21];
 
-// MAC / IP address of device
-byte _mac[6];
-byte _ip[4];
 
 unsigned long _tool_start_time;
 unsigned long _auth_start;
