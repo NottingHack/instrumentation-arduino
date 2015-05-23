@@ -79,6 +79,10 @@ byte server[] = { 192, 168, 0, 1 };
 #define TIMEOUT_COMS (1000*10) // 10s - timeout waiting for server/note acceptor.
 #define TIMEOUT_SES  (1000*30) // 30s - Sesion timout - (STATE_ACCEPT - waiting for user)
 
+// Location in EEPROM of config
+#define EEPROM_JAMMED         0 //  1 bytes
+
+
 enum state_t
 {
   STATE_CONN_WAIT,        // Waiting for MQTT connection

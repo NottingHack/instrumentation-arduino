@@ -53,6 +53,7 @@
 #include <Ethernet.h>
 #include <PubSubClient.h>
 #include <MFRC522.h>
+#include <EEPROM.h>
 #include "Config.h"
 #include "nv4.h"
 
@@ -374,7 +375,7 @@ void setup()
 
   pinMode(PIN_CANCEL_BUTTON, INPUT);
   digitalWrite(PIN_CANCEL_BUTTON, HIGH);
-
+  
   dbg_println(F("Start Ethernet"));
   Ethernet.begin(mac, ip);
 
@@ -384,6 +385,22 @@ void setup()
   // Start MQTT and say we are alive
   dbg_println(F("Check MQTT"));
   checkMQTT();
+
+  /* If the acceptor was jammed prior to the last reset, assume it still is, unless the cancel button has been held down on power on */
+  if (EEPROM.read(EEPROM_JAMMED)==1)
+  {
+    if (digitalRead(PIN_CANCEL_BUTTON) == LOW)
+    {
+      // clear the jammed EEPROM flag 
+      EEPROM.write(EEPROM_JAMMED, 0);
+      dbg_println(F("Clearing JAMMED flag"));
+    } else
+    {
+      dbg_println(F("Prior JAM..."));
+      set_state(STATE_JAMMED);
+    }
+  }
+
 
   delay(100);
 
@@ -483,6 +500,9 @@ uint8_t set_state(state_t new_state)
       memset(rfid_serial, 0, sizeof(rfid_serial));
       memset(tran_id, 0, sizeof(tran_id));
       state = STATE_JAMMED;
+
+      // Remember this, so a power cycle doesn't clear this state (as it'll likley still be physically jammed)
+      EEPROM.write(EEPROM_JAMMED, 1);
       break;
 
     default:
