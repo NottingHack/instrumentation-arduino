@@ -74,7 +74,7 @@ void dbg_println(const char *msg);
 
 EthernetClient ethClient;
 PubSubClient client(server, MQTT_PORT, callbackMQTT, ethClient);
-LiquidCrystal_I2C lcd(0x27,20,4);  // 20x4 display at address 0x27
+LiquidCrystal_I2C lcd(0x3F,20,4);  // 20x4 display at address 0x3F
 MFRC522 rfid_reader(PIN_RFID_SS, PIN_RFID_RST);
 
 
@@ -127,7 +127,7 @@ void callbackMQTT(char* topic, byte* payload, unsigned int length)
   {
     if (!strncmp(STATUS_STRING, (char*)payload, strlen(STATUS_STRING)))
     {
-      dbg_println(F("Status Request"));
+      // dbg_println(F("Status Request"));
       client.publish(P_STATUS, RUNNING);
     }
   }
