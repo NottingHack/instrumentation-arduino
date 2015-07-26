@@ -14,6 +14,8 @@ char json_test[] = "{ \"now\": { \"display_time\": \"now\", \"display_name\": \"
 byte _buf[2][16][24];
 
 volatile uint8_t current_buf = 0; 
+volatile unsigned long _last_refresh_start;
+volatile bool _do_net;
 
 MatrixText *mt1, *mt2; // MatrixText string
 byte mac[]    = {0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
@@ -22,8 +24,10 @@ byte ip[]     = { 10, 0, 0, 100 };
 
 EthernetClient ethClient;
 PubSubClient _client(server, 1883, mqtt_callback, ethClient);
-StaticJsonBuffer<500> _json_buffer;
 
+char _json_message[300];
+bool _got_json_message;
+StaticJsonBuffer<500> _json_buffer;
 char _display_time_now[8];
 char _display_name_now[50];
 char _display_time_next[8];
@@ -36,39 +40,44 @@ char _display_name_next[50];
 #define S_BOOKINGS  "nh/tools/laser/BOOKINGS"
 
 #define DEV_NAME    "LaserDisplay"
-  
+#define STATUS_STRING "STATUS"
+
 void setup() 
 {
-  Serial.begin(9600);
+  Serial.begin(115200);
   Serial.println("Init");
+  _got_json_message = false;
   
   mqtt_callback(S_BOOKINGS, (byte*)json_test, sizeof(json_test));
-  Serial.println("Done");
-  while(1);
 
+
+  
+  // SPI init
+  SPI.begin(4) ;
+  SPI.setClockDivider(4, SPI_CLOCK_DIV32);
+  SPI.setDataMode(4, SPI_MODE3);
+  SPI.setBitOrder(4, MSBFIRST);
  
   Serial.println(F("Init..."));
   pinMode(W5100_RESET_PIN, OUTPUT);
   digitalWrite(W5100_RESET_PIN, LOW);
   delay(100);
   digitalWrite(W5100_RESET_PIN, HIGH);
-  delay(3000); 
+  delay(1000); 
 
-  Serial.println(F("Get address using DHCP..."));
-  while (Ethernet.begin(mac) == 0) 
-  {
-    Serial.println(F("DHCP failed."));
-    delay(2000);
-  }
+  
+  Ethernet.begin(mac, ip);
   Serial.print(F("local IP:"));
   Serial.println(Ethernet.localIP());
-  Serial.println(F("node started."));  
+  Serial.println(F("node started."));
+  _client.loop();
+  _client.loop();
+  Serial.println(F("After client l")); 
+  checkMQTT();
+  Serial.println(F("After mqtt")); 
+  _client.loop();
+  
 
-  // SPI init
-  SPI.begin(4) ;
-  SPI.setClockDivider(4, SPI_CLOCK_DIV32);
-  SPI.setDataMode(4, SPI_MODE3);
-  SPI.setBitOrder(4, MSBFIRST);
   
   // start with a blank buffer
   memset(_buf, 0, sizeof(_buf));
@@ -89,10 +98,13 @@ void setup()
   memcpy(_buf[1], _buf[0], sizeof(_buf[1]));
 
  Timer3.attachInterrupt(DisplayRefresh).start(25000); // 25ms
+  Serial.println(F("Init done.")); 
 }
 
 void DisplayRefresh()
 {
+  _last_refresh_start = micros();
+  
   /* Refresh the display. This takes ~10ms */
   for (int i = 0; i <  16; i++)
   {
@@ -109,21 +121,79 @@ void DisplayRefresh()
       delayMicroseconds(15);
     }
   }
+  _do_net = true;
 }
 
 void mqtt_callback(char* topic, byte* payload, unsigned int length) 
 {
+  char buf[30];
+
+  if (!strcmp(topic, S_STATUS))
+  {
+    if (!strncmp(STATUS_STRING, (char*)payload, strlen(STATUS_STRING)))
+    {
+//      dbg_println(F("Status Request"));
+      sprintf(buf, "Running: %s", DEV_NAME);
+      _client.publish(P_STATUS, buf);
+    }
+  }
+
   if (strcmp(topic, S_BOOKINGS) == 0)
   {
-    payload[length-1] = '\0';
-    Serial.println((char*)payload);
-    JsonObject& root = _json_buffer.parseObject((char*)payload);
+    int size = sizeof(_json_message)-1;
+    if ((length+1) < size)
+      size = (length+1);
+    
+    _got_json_message = true;
+    strlcpy(_json_message, (char*)payload, size);
+  }
+
+
+}
+
+
+void loop() 
+{
+  /*
+  mt1->loop();
+  mt2->loop();
+  current_buf = !current_buf;
+*/
+  
+  uint8_t buf_updated = false;
+  //_client.loop();
+  buf_updated = mt1->loop();
+ // _client.loop();
+  buf_updated |= mt2->loop();
+  
+  if (buf_updated)
+  {
+    current_buf = !current_buf;
+    
+    memcpy(_buf[!current_buf], _buf[current_buf], sizeof(_buf[current_buf]));
+  }  
+  
+  if (micros() - _last_refresh_start < 10000)
+  //if (_do_net)
+  {
+   // Serial.println(".");
+    _client.loop();
+    checkMQTT();
+    _do_net = false;
+  } //else
+   // Serial.println("!");
+   
+  if ((_got_json_message) && 0)
+  {
+    _got_json_message = false;
+    
+    JsonObject& root = _json_buffer.parseObject(_json_message);
     if (!root.success())
     {
       Serial.println("parseObject() failed");
       return;
     }
-
+    
     const char* display_time_now  = root["now" ]["display_time"];
     const char* display_name_now  = root["now" ]["display_name"];
     const char* display_time_next = root["next"]["display_time"];
@@ -138,19 +208,10 @@ void mqtt_callback(char* topic, byte* payload, unsigned int length)
     Serial.println(_display_time_now);
     Serial.println(_display_name_now);
     Serial.println(_display_time_next);
-    Serial.println(_display_name_next);
-    
-    
-    
+    Serial.println(_display_name_next); 
   }
-}
-
-
-void loop() 
-{
-  mt1->loop(true);
-  mt2->loop(true);
-  current_buf = !current_buf;
+   
+   
 } 
 
 byte encode_row(byte row)
@@ -176,20 +237,24 @@ void checkMQTT()
 {
   char *pToolTopic;
   static boolean first_connect = true;
-
+  
   if (!_client.connected()) 
   {
+    Serial.println("NOT connected");
     if (_client.connect(DEV_NAME)) 
     {
+      Serial.println("Now connected");
       char buf[30];
       
       sprintf(buf, "Restart: %s", DEV_NAME);
       _client.publish(P_STATUS, buf);
+      Serial.println("after pub");
 
       // Subscribe
       _client.subscribe(S_BOOKINGS);
 
       _client.subscribe(S_STATUS); 
+      Serial.println("after sub");
 
     }
   }
