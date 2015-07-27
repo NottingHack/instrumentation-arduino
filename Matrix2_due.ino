@@ -1,6 +1,8 @@
 #include <DueTimer.h>
+#include "MsNowNext.h"
 #include <MatrixText.h>
 #include <System5x7.h>
+
 #include <SPI.h>
 #include <Ethernet.h>
 #include <PubSubClient.h>
@@ -12,6 +14,9 @@ void mqtt_callback(char* topic, byte* payload, unsigned int length);
 char json_test[] = "{ \"now\": { \"display_time\": \"now\", \"display_name\": \"none\" }, \"next\": { \"display_time\": \"09:00\", \"display_name\": \"James Fowkes\" } }";
 
 byte _buf[2][16][24];
+
+
+MsNowNext *nn;
 
 volatile uint8_t current_buf = 0; 
 volatile unsigned long _last_refresh_start;
@@ -27,7 +32,7 @@ PubSubClient _client(server, 1883, mqtt_callback, ethClient);
 
 char _json_message[300];
 bool _got_json_message;
-StaticJsonBuffer<500> _json_buffer;
+
 char _display_time_now[8];
 char _display_name_now[50];
 char _display_time_next[8];
@@ -50,7 +55,8 @@ void setup()
   
   mqtt_callback(S_BOOKINGS, (byte*)json_test, sizeof(json_test));
 
-
+  nn = new MsNowNext(set_xy, 192, 16);
+  nn->init();
   
   // SPI init
   SPI.begin(4) ;
@@ -159,7 +165,7 @@ void loop()
   mt2->loop();
   current_buf = !current_buf;
 */
-  
+  /*
   uint8_t buf_updated = false;
   //_client.loop();
   buf_updated = mt1->loop();
@@ -172,25 +178,37 @@ void loop()
     
     memcpy(_buf[!current_buf], _buf[current_buf], sizeof(_buf[current_buf]));
   }  
+  */
   
-  if (micros() - _last_refresh_start < 10000)
-  //if (_do_net)
+  if (nn->loop())
   {
-   // Serial.println(".");
+    current_buf = !current_buf;
+    
+    memcpy(_buf[!current_buf], _buf[current_buf], sizeof(_buf[current_buf]));
+  } 
+  
+  
+  // Don't access the wiznet module unless a display refresh has recently
+  // fnished (i.e. a refresh hopfully won't be due mid net check)
+  // Both share the SPI bus, and the display will flicker if it's
+  // not regualary / consistanty refreshed, so that takes priority.
+  if (micros() - _last_refresh_start < 10000)
+  {
     _client.loop();
     checkMQTT();
-    _do_net = false;
-  } //else
-   // Serial.println("!");
+  }
+
    
-  if ((_got_json_message) && 0)
+  if (_got_json_message)
   {
-    _got_json_message = false;
-    
-    JsonObject& root = _json_buffer.parseObject(_json_message);
+    _got_json_message = false;    
+    Serial.println(_json_message);
+    StaticJsonBuffer<500> json_buffer;
+    JsonObject& root = json_buffer.parseObject(_json_message);
     if (!root.success())
     {
       Serial.println("parseObject() failed");
+      Serial.println(_json_message);
       return;
     }
     
@@ -210,8 +228,7 @@ void loop()
     Serial.println(_display_time_next);
     Serial.println(_display_name_next); 
   }
-   
-   
+
 } 
 
 byte encode_row(byte row)
