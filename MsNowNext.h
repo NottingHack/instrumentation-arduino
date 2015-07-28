@@ -4,7 +4,7 @@
 #include "MatrixScreen.h"
 #include "MatrixText.h"
 #include <Arduino.h>
-
+#include <ArduinoJson.h>
 
 class MsNowNext : public MatrixScreen
 {
@@ -13,10 +13,16 @@ class MsNowNext : public MatrixScreen
      ~MsNowNext();
      void init();
      bool loop();
+     bool process_message(char *json_string);
 
   private:
-    MatrixText *_mt_now_time, *_mt_now_name; // MatrixText strings
-
+    void show_text();
+    MatrixText *_mt_now_time , *_mt_now_name ; // MatrixText strings
+    MatrixText *_mt_next_time, *_mt_next_name; 
+    char _now_time [  6];
+    char _next_time[  6];
+    char _now_name [128];
+    char _next_name[128];
 };
 
 #endif

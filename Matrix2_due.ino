@@ -11,8 +11,6 @@
 // Callback function header
 void mqtt_callback(char* topic, byte* payload, unsigned int length);
 
-char json_test[] = "{ \"now\": { \"display_time\": \"now\", \"display_name\": \"none\" }, \"next\": { \"display_time\": \"09:00\", \"display_name\": \"James Fowkes\" } }";
-
 byte _buf[2][16][24];
 
 
@@ -52,8 +50,6 @@ void setup()
   Serial.begin(115200);
   Serial.println("Init");
   _got_json_message = false;
-  
-  mqtt_callback(S_BOOKINGS, (byte*)json_test, sizeof(json_test));
 
   nn = new MsNowNext(set_xy, 192, 16);
   nn->init();
@@ -201,32 +197,8 @@ void loop()
    
   if (_got_json_message)
   {
-    _got_json_message = false;    
-    Serial.println(_json_message);
-    StaticJsonBuffer<500> json_buffer;
-    JsonObject& root = json_buffer.parseObject(_json_message);
-    if (!root.success())
-    {
-      Serial.println("parseObject() failed");
-      Serial.println(_json_message);
-      return;
-    }
-    
-    const char* display_time_now  = root["now" ]["display_time"];
-    const char* display_name_now  = root["now" ]["display_name"];
-    const char* display_time_next = root["next"]["display_time"];
-    const char* display_name_next = root["next"]["display_name"];
-    
-    strlcpy(_display_name_next, display_name_next, sizeof(_display_name_next));
-    strlcpy(_display_name_now , display_name_now , sizeof(_display_name_now ));
-    
-    strlcpy(_display_time_next, display_time_next, sizeof(_display_time_next));
-    strlcpy(_display_time_now , display_time_now , sizeof(_display_time_now ));
-    
-    Serial.println(_display_time_now);
-    Serial.println(_display_name_now);
-    Serial.println(_display_time_next);
-    Serial.println(_display_name_next); 
+    _got_json_message = false;
+    nn->process_message(_json_message);
   }
 
 } 
