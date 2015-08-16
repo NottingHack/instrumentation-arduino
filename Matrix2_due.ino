@@ -1,5 +1,6 @@
 #include <DueTimer.h>
 #include "MsNowNext.h"
+#include "MsAlert.h"
 #include <MatrixText.h>
 #include <System5x7.h>
 
@@ -15,15 +16,16 @@ byte _buf[2][16][24];
 
 
 MsNowNext *nn;
+MsAlert *alert;
 
 volatile uint8_t current_buf = 0; 
 volatile unsigned long _last_refresh_start;
-volatile bool _do_net;
+volatile bool _net_access;
 
-MatrixText *mt1, *mt2; // MatrixText string
+
 byte mac[]    = {0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
-byte server[] = { 10, 0, 0, 1 };
-byte ip[]     = { 10, 0, 0, 100 };
+byte server[] = { 192, 168, 1, 82 };
+byte ip[]     = { 192, 168, 1, 8 };
 
 EthernetClient ethClient;
 PubSubClient _client(server, 1883, mqtt_callback, ethClient);
@@ -54,9 +56,12 @@ void setup()
   nn = new MsNowNext(set_xy, 192, 16);
   nn->init();
   
+  alert = new MsAlert(set_xy, 192, 16);
+  
+  
   // SPI init
   SPI.begin(4) ;
-  SPI.setClockDivider(4, SPI_CLOCK_DIV32);
+  SPI.setClockDivider(4, SPI_CLOCK_DIV16);
   SPI.setDataMode(4, SPI_MODE3);
   SPI.setBitOrder(4, MSBFIRST);
  
@@ -80,31 +85,28 @@ void setup()
   _client.loop();
   
 
-  
   // start with a blank buffer
   memset(_buf, 0, sizeof(_buf));
   
-  // Init matrix text
-  mt1 = new MatrixText(set_xy);
-  mt1->show_text("TEST", 0, 0, 192, 8);
-  mt1->set_scroll_speed(0); 
-  
-  mt2 = new MatrixText(set_xy);
-  // mt2->show_text("-=QWERTYUIOPASDFGHJKL=-", 0, 8, 192, 16);
-  mt2->show_text("123456789012345678901234567890", 0, 8, 192, 16, false);
-  mt2->set_scroll_speed(20); 
 
+ 
 
   current_buf = 1; /* mt1-loop() will draw to buffer[0], i.e. not the current one */
-  mt1->loop();
+ alert->init();  
   memcpy(_buf[1], _buf[0], sizeof(_buf[1]));
 
- Timer3.attachInterrupt(DisplayRefresh).start(25000); // 25ms
+
+  
+ Timer3.attachInterrupt(DisplayRefresh).start(25000); // 25ms.
   Serial.println(F("Init done.")); 
+
 }
 
 void DisplayRefresh()
 {
+  if (_net_access)
+    return;
+  
   _last_refresh_start = micros();
   
   /* Refresh the display. This takes ~10ms */
@@ -123,7 +125,6 @@ void DisplayRefresh()
       delayMicroseconds(15);
     }
   }
-  _do_net = true;
 }
 
 void mqtt_callback(char* topic, byte* payload, unsigned int length) 
@@ -134,7 +135,6 @@ void mqtt_callback(char* topic, byte* payload, unsigned int length)
   {
     if (!strncmp(STATUS_STRING, (char*)payload, strlen(STATUS_STRING)))
     {
-//      dbg_println(F("Status Request"));
       sprintf(buf, "Running: %s", DEV_NAME);
       _client.publish(P_STATUS, buf);
     }
@@ -156,27 +156,9 @@ void mqtt_callback(char* topic, byte* payload, unsigned int length)
 
 void loop() 
 {
-  /*
-  mt1->loop();
-  mt2->loop();
-  current_buf = !current_buf;
-*/
-  /*
-  uint8_t buf_updated = false;
-  //_client.loop();
-  buf_updated = mt1->loop();
- // _client.loop();
-  buf_updated |= mt2->loop();
-  
-  if (buf_updated)
-  {
-    current_buf = !current_buf;
-    
-    memcpy(_buf[!current_buf], _buf[current_buf], sizeof(_buf[current_buf]));
-  }  
-  */
-  
-  if (nn->loop())
+
+  //if (nn->loop())
+  if (alert->loop())
   {
     current_buf = !current_buf;
     
@@ -185,13 +167,15 @@ void loop()
   
   
   // Don't access the wiznet module unless a display refresh has recently
-  // fnished (i.e. a refresh hopfully won't be due mid net check)
+  // finshed (i.e. a refresh hopfully won't be due mid net check)
   // Both share the SPI bus, and the display will flicker if it's
   // not regualary / consistanty refreshed, so that takes priority.
   if (micros() - _last_refresh_start < 10000)
   {
+    _net_access = true;
     _client.loop();
     checkMQTT();
+    _net_access = false;
   }
 
    
@@ -201,6 +185,9 @@ void loop()
     nn->process_message(_json_message);
   }
 
+  
+  
+  
 } 
 
 byte encode_row(byte row)
@@ -238,6 +225,10 @@ void checkMQTT()
       sprintf(buf, "Restart: %s", DEV_NAME);
       _client.publish(P_STATUS, buf);
       Serial.println("after pub");
+      
+      // Also request the latest booking info
+      _client.publish(S_BOOKINGS, "POLL");
+      
 
       // Subscribe
       _client.subscribe(S_BOOKINGS);

@@ -16,13 +16,19 @@ class MsNowNext : public MatrixScreen
      bool process_message(char *json_string);
 
   private:
+    enum screen_mode_t {SCREEN_NOW_NEXT, SCREEN_BANNER};
     void show_text();
+    void set_screen(screen_mode_t mode);
     MatrixText *_mt_now_time , *_mt_now_name ; // MatrixText strings
-    MatrixText *_mt_next_time, *_mt_next_name; 
-    char _now_time [  6];
-    char _next_time[  6];
-    char _now_name [128];
-    char _next_name[128];
+    MatrixText *_mt_next_time, *_mt_next_name;
+    MatrixText *_mt_banner;
+    char _banner_msg[100];
+    char _now_time  [  6];
+    char _next_time [  6];
+    char _now_name  [128];
+    char _next_name [128];
+    screen_mode_t _mode;
+    
 };
 
 #endif

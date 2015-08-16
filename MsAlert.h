@@ -6,7 +6,6 @@
 #include <Arduino.h>
 #include <ArduinoJson.h>
 
-void alert_set_xy (uint16_t x, byte y, byte val);
 
 class MsAlert : public MatrixScreen
 {
@@ -21,6 +20,7 @@ class MsAlert : public MatrixScreen
     // void show_text();
     MatrixText *_mt_top , *_mt_bottom;
     void show_text();
+    void draw_border(uint8_t a);
 
     char _top_msg[100];
     char _bottom_msg[100];
