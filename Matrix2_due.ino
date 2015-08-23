@@ -24,7 +24,7 @@ volatile bool _net_access;
 
 
 byte mac[]    = {0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
-byte server[] = { 192, 168, 1, 82 };
+byte server[] = { 192, 168, 1, 87 };
 byte ip[]     = { 192, 168, 1, 8 };
 
 EthernetClient ethClient;
@@ -39,7 +39,7 @@ char _display_time_next[8];
 char _display_name_next[50];
 
 
-#define W5100_RESET_PIN 21
+#define W5100_RESET_PIN 14
 #define S_STATUS    "nh/status/req"
 #define P_STATUS    "nh/status/res"
 #define S_BOOKINGS  "nh/tools/laser/BOOKINGS"
@@ -61,7 +61,7 @@ void setup()
   
   // SPI init
   SPI.begin(4) ;
-  SPI.setClockDivider(4, SPI_CLOCK_DIV16);
+  SPI.setClockDivider(4, SPI_CLOCK_DIV32);
   SPI.setDataMode(4, SPI_MODE3);
   SPI.setBitOrder(4, MSBFIRST);
  
@@ -157,8 +157,8 @@ void mqtt_callback(char* topic, byte* payload, unsigned int length)
 void loop() 
 {
 
-  //if (nn->loop())
-  if (alert->loop())
+  if (nn->loop())
+  //if (alert->loop())
   {
     current_buf = !current_buf;
     
@@ -182,7 +182,9 @@ void loop()
   if (_got_json_message)
   {
     _got_json_message = false;
+      Serial.println(_json_message);
     nn->process_message(_json_message);
+  
   }
 
   
