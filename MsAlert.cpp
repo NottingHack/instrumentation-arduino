@@ -8,23 +8,28 @@ MsAlert::MsAlert(set_xy_fuct set_xy, uint16_t size_x, uint16_t size_y)
   _set_xy = set_xy;
   _size_x = size_x;
   _size_y = size_y;
-  
+
 
   _mt_top = new MatrixText(_set_xy);
-  
-  strcpy(_top_msg, "TEST ALERT");
+
+  strcpy(_msg, "");
   show_text();
 }
 
 MsAlert::~MsAlert()
 {
-  
+
+}
+
+void MsAlert::set_message(char *msg)
+{
+  strlcpy(_msg, msg, sizeof(_msg));
+  show_text();
 }
 
 void MsAlert::init()
 {
-  //_mt_top->set_scroll_speed( 20);
-
+  _mt_top->set_scroll_speed(10);
 
   draw_border(0);
   show_text();
@@ -33,10 +38,16 @@ void MsAlert::init()
 
 void MsAlert::show_text()
 {
+  bool scroll_text;
+  int left_x, right_x;
 
+  left_x  = SYSTEM5x8_WIDTH;
+  right_x = _size_x - SYSTEM5x8_WIDTH;
 
-  _mt_top->show_text(_top_msg, SYSTEM5x8_WIDTH, 5, _size_x-25, 5+8, false);
+  // If the text won't fit on the display, then it needs to be scrolled.
+  scroll_text = ( (strlen(_msg)*(SYSTEM5x8_WIDTH+1)) > (right_x-left_x) );
 
+  _mt_top->show_text(_msg, left_x, 5, right_x, 5+8, scroll_text);
 }
 
 void MsAlert::draw_border(uint8_t a)
@@ -110,20 +121,17 @@ bool MsAlert::loop()
   a++;
   if (a>60)
     a = 0;
-  
+
   uint8_t buf_updated = false;
 
   if (a > 30)
     draw_border(1);
   else
     draw_border(0);
-  
-  _mt_top->loop(true);
-  
-  buf_updated = true;
 
-  
- // buf_updated |= _mt_bottom->loop();
+  _mt_top->loop(true);
+
+  buf_updated = true;
 
   return buf_updated;
 }

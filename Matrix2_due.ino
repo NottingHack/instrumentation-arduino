@@ -1,13 +1,17 @@
-#include <DueTimer.h>
-#include "MsNowNext.h"
-#include "MsAlert.h"
-#include <MatrixText.h>
-#include <System5x7.h>
+#include <climits> 
 
+#include <DueTimer.h>
 #include <SPI.h>
 #include <Ethernet.h>
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
+
+#include <MatrixText.h>
+#include <System5x7.h>
+#include "MsNowNext.h"
+#include "MsAlert.h"
+
+enum screen_t {SCREEN_ALERT, SCREEN_NOW_NEXT};
 
 // Callback function header
 void mqtt_callback(char* topic, byte* payload, unsigned int length);
@@ -33,19 +37,24 @@ PubSubClient _client(server, 1883, mqtt_callback, ethClient);
 char _json_message[300];
 bool _got_json_message;
 
-char _display_time_now[8];
-char _display_name_now[50];
-char _display_time_next[8];
-char _display_name_next[50];
+unsigned long _alert_end;
 
+MatrixScreen *_current_screen;
 
 #define W5100_RESET_PIN 14
-#define S_STATUS    "nh/status/req"
-#define P_STATUS    "nh/status/res"
-#define S_BOOKINGS  "nh/tools/laser/BOOKINGS"
+#define S_STATUS       "nh/status/req"
+#define P_STATUS       "nh/status/res"
+#define S_BOOKINGS     "nh/tools/laser/BOOKINGS"
+#define S_LOCAL_ALERT  "nh/tools/laser/ALERT"
+#define S_GLOBAL_ALERT "nh/ALERT"
 
 #define DEV_NAME    "LaserDisplay"
 #define STATUS_STRING "STATUS"
+
+// Because millis() doesn't increase whilst interupt handlers are executing... and we
+// spend a long time inside interupt handlers, we need to be able to compensate for this
+// when delays of x seconds are required.
+#define TIMING_MULTIPLIER 0.441f
 
 void setup() 
 {
@@ -55,10 +64,10 @@ void setup()
 
   nn = new MsNowNext(set_xy, 192, 16);
   nn->init();
-  
+
   alert = new MsAlert(set_xy, 192, 16);
-  
-  
+  alert->init();
+
   // SPI init
   SPI.begin(4) ;
   SPI.setClockDivider(4, SPI_CLOCK_DIV32);
@@ -72,7 +81,6 @@ void setup()
   digitalWrite(W5100_RESET_PIN, HIGH);
   delay(1000); 
 
-  
   Ethernet.begin(mac, ip);
   Serial.print(F("local IP:"));
   Serial.println(Ethernet.localIP());
@@ -83,23 +91,36 @@ void setup()
   checkMQTT();
   Serial.println(F("After mqtt")); 
   _client.loop();
-  
 
-  // start with a blank buffer
-  memset(_buf, 0, sizeof(_buf));
-  
+  current_buf = 1;
 
- 
+  SetScreen(SCREEN_NOW_NEXT);
 
-  current_buf = 1; /* mt1-loop() will draw to buffer[0], i.e. not the current one */
- alert->init();  
-  memcpy(_buf[1], _buf[0], sizeof(_buf[1]));
-
-
-  
  Timer3.attachInterrupt(DisplayRefresh).start(25000); // 25ms.
-  Serial.println(F("Init done.")); 
+ Serial.println(F("Init done."));
+ 
+ Serial.println(millis());
+}
 
+void SetScreen(int scn)
+{
+  memset(_buf, 0, sizeof(_buf));
+
+  switch (scn)
+  {
+    case SCREEN_ALERT:
+      _current_screen = alert;
+      break;
+
+    case SCREEN_NOW_NEXT:
+      _current_screen = nn;
+      break;
+
+    default:
+      Serial.print(F("Unknown screen: "));
+      Serial.println(scn);
+      break;
+  }
 }
 
 void DisplayRefresh()
@@ -129,8 +150,10 @@ void DisplayRefresh()
 
 void mqtt_callback(char* topic, byte* payload, unsigned int length) 
 {
-  char buf[30];
+  char buf[256];
 
+  Serial.println(topic);
+  
   if (!strcmp(topic, S_STATUS))
   {
     if (!strncmp(STATUS_STRING, (char*)payload, strlen(STATUS_STRING)))
@@ -140,32 +163,83 @@ void mqtt_callback(char* topic, byte* payload, unsigned int length)
     }
   }
 
-  if (strcmp(topic, S_BOOKINGS) == 0)
+  else if (strcmp(topic, S_BOOKINGS) == 0)
   {
     int size = sizeof(_json_message)-1;
     if ((length+1) < size)
       size = (length+1);
-    
+
     _got_json_message = true;
     strlcpy(_json_message, (char*)payload, size);
   }
 
+  else if ((strcmp(topic, S_GLOBAL_ALERT) == 0) ||
+           (strcmp(topic, S_LOCAL_ALERT ) == 0))
+  {
+    uint32_t alert_duration;
+    // Message is expected to be in the format:
+    //   "nnnnn:message"
+    // Where nnnnn is the number of seconds to display the message for. If 0 then
+    // show message until a cancel message is received.
+    // A 0 length message is treated as a cancel.
+    if (length == 0)
+    {
+      SetScreen(SCREEN_NOW_NEXT);
+      return;
+    }
 
+    if (length < 6)
+    {
+      Serial.println(F("Invalid message"));
+      return;
+    }
+
+    // Get alert duration
+    strncpy(buf, (char*)payload, 5);
+    alert_duration = atoi(buf);
+
+    if (alert_duration == 0)
+      _alert_end = ULONG_MAX;
+    else
+      _alert_end = millis() + ((float)(alert_duration * 1000) * TIMING_MULTIPLIER);
+
+    if (length == 6) // no message specified, treat as cancel.
+    {
+      SetScreen(SCREEN_NOW_NEXT);
+      return;
+    }
+
+    // Get message
+    strlcpy(buf, (char*)payload+6, length-5);
+
+    // Show alert
+    alert->set_message(buf);
+    SetScreen(SCREEN_ALERT);
+  }
 }
 
 
-void loop() 
+void loop()
 {
 
-  if (nn->loop())
-  //if (alert->loop())
+  // Check for an alert to cancel
+  if (_current_screen == alert)
+    if ((_alert_end != ULONG_MAX) && (_alert_end != 0))
+      if (millis() > _alert_end)
+      {
+        Serial.println(F("Canceling alert"));
+        _alert_end = 0;
+        SetScreen(SCREEN_NOW_NEXT);
+      }
+
+  if (_current_screen->loop())
   {
     current_buf = !current_buf;
-    
+
     memcpy(_buf[!current_buf], _buf[current_buf], sizeof(_buf[current_buf]));
-  } 
-  
-  
+  }
+
+
   // Don't access the wiznet module unless a display refresh has recently
   // finshed (i.e. a refresh hopfully won't be due mid net check)
   // Both share the SPI bus, and the display will flicker if it's
@@ -178,25 +252,21 @@ void loop()
     _net_access = false;
   }
 
-   
+
   if (_got_json_message)
   {
     _got_json_message = false;
       Serial.println(_json_message);
     nn->process_message(_json_message);
-  
   }
 
-  
-  
-  
-} 
+}
 
 byte encode_row(byte row)
 {
   byte enc_row=0;
   byte nibble1, nibble2;
-  
+
   nibble1 = row;
   nibble2 = ~row & 0x0F;
   
@@ -234,7 +304,8 @@ void checkMQTT()
 
       // Subscribe
       _client.subscribe(S_BOOKINGS);
-
+      _client.subscribe(S_GLOBAL_ALERT);
+      _client.subscribe(S_LOCAL_ALERT);
       _client.subscribe(S_STATUS); 
       Serial.println("after sub");
 

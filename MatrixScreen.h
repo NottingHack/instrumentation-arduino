@@ -16,8 +16,6 @@ typedef void (*set_xy_fuct)(uint16_t,byte,byte);
 class MatrixScreen
 {
   public:
-    //MatrixScreen() ;
-    
     virtual void init()  = 0;
     virtual bool loop()  = 0;
 

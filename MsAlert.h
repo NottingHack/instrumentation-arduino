@@ -12,6 +12,7 @@ class MsAlert : public MatrixScreen
   public:
      MsAlert(set_xy_fuct set_xy, uint16_t size_x, uint16_t size_y);
      ~MsAlert();
+     void set_message(char *msg);
      void init();
      bool loop();
      
@@ -22,12 +23,7 @@ class MsAlert : public MatrixScreen
     void show_text();
     void draw_border(uint8_t a);
 
-    char _top_msg[100];
-    char _bottom_msg[100];
-
-
-
-    
+    char _msg[256];
 };
 
 #endif
