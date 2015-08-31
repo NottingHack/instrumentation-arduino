@@ -28,14 +28,15 @@ volatile bool _net_access;
 
 
 byte mac[]    = {0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
-byte server[] = { 192, 168, 1, 87 };
-byte ip[]     = { 192, 168, 1, 8 };
+byte server[] = { 192, 168, 0, 1 };
+byte ip[]     = { 192, 168, 0, 24 };
 
 EthernetClient ethClient;
 PubSubClient _client(server, 1883, mqtt_callback, ethClient);
 
 char _json_message[300];
 bool _got_json_message;
+bool _connected;
 
 unsigned long _alert_end;
 
@@ -68,6 +69,8 @@ void setup()
   alert = new MsAlert(set_xy, 192, 16);
   alert->init();
 
+  _connected = false;
+  
   // SPI init
   SPI.begin(4) ;
   SPI.setClockDivider(4, SPI_CLOCK_DIV32);
@@ -125,11 +128,17 @@ void SetScreen(int scn)
 
 void DisplayRefresh()
 {
+  // Don't attempt to refresh the display if the wiznet module is being accessed
   if (_net_access)
     return;
-  
+
   _last_refresh_start = micros();
-  
+
+  // If we're not connected to mosquitto, don't refresh the display. As the SPI interface
+  // is tied up for so long during each connection attempt, the display is basically unreadable.
+  if (!_connected)
+    return;
+
   /* Refresh the display. This takes ~10ms */
   for (int i = 0; i <  16; i++)
   {
@@ -244,7 +253,11 @@ void loop()
   // finshed (i.e. a refresh hopfully won't be due mid net check)
   // Both share the SPI bus, and the display will flicker if it's
   // not regualary / consistanty refreshed, so that takes priority.
-  if (micros() - _last_refresh_start < 10000)
+  if 
+    (
+      (micros() - _last_refresh_start < 10000) ||
+      (!_connected) // display isn't refreshed if not connected, so bypass check
+    )
   {
     _net_access = true;
     _client.loop();
@@ -289,9 +302,11 @@ void checkMQTT()
   if (!_client.connected()) 
   {
     Serial.println("NOT connected");
+    _connected = false;
     if (_client.connect(DEV_NAME)) 
     {
       Serial.println("Now connected");
+      _connected = true;
       char buf[30];
       
       sprintf(buf, "Restart: %s", DEV_NAME);
