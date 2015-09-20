@@ -67,6 +67,8 @@ EthernetClient _ethClient;
 PubSubClient _client(server, MQTT_PORT, callbackMQTT, _ethClient);
 LiquidCrystal_I2C lcd(0x27,16,2);  // 16x2 display at address 0x27
 MFRC522 _rfid_reader(PIN_RFID_SS, PIN_RFID_RST);
+void relay_off();
+void relay_on();
 
 dev_state_t    _dev_state;
 
@@ -300,14 +302,16 @@ void setup()
   _serial_state = SS_MAIN_MENU;
   set_dev_state(DEV_NO_CONN);
 
-  pinMode(PIN_RELAY, OUTPUT);
-  pinMode(PIN_SIGNOFF_LIGHT, OUTPUT);   
+  pinMode(PIN_RELAY_RESET, OUTPUT);
+  pinMode(PIN_RELAY_SET  , OUTPUT);
+  pinMode(TOOL_POWER_LED, OUTPUT);   
   pinMode(PIN_INDUCT_LED, OUTPUT); 
   pinMode(PIN_INDUCT_BUTTON, INPUT);
   pinMode(PIN_SIGNOFF_BUTTON, INPUT);
 
-  digitalWrite(PIN_RELAY, LOW);
-  digitalWrite(PIN_SIGNOFF_LIGHT, LOW); 
+  digitalWrite(PIN_RELAY_RESET, LOW);
+  digitalWrite(PIN_RELAY_SET  , LOW);
+  digitalWrite(TOOL_POWER_LED, LOW); 
   digitalWrite(PIN_INDUCT_LED, LOW);
   digitalWrite(PIN_INDUCT_BUTTON, HIGH);
   digitalWrite(PIN_SIGNOFF_BUTTON, HIGH); 
@@ -336,7 +340,7 @@ void setup()
   dbg_println(F("Init LCD"));
   lcd.init();
   lcd.backlight();
-  lcd_display(F("Tools ctl v0.2"));
+  lcd_display(F("Tools ctl v0.3"));
   lcd_display(_dev_name,1, false);
 
   dbg_println(F("Start Ethernet"));
@@ -408,6 +412,45 @@ void induct_loop()
   }
 }
 
+void state_led_loop()
+{
+  static unsigned long led_last_change = 0;
+  static boolean led_on = false;
+  
+  switch (_dev_state)
+  {
+    case DEV_NO_CONN:
+    case DEV_AUTH_WAIT:
+    case DEV_INDUCT_WAIT:
+      /* Flash LED. For auth & induct wait, if all goes well, the LED won't have time to flash */
+      if (millis()-led_last_change > STATE_FLASH_FREQ)
+      {
+        led_last_change = millis();
+        if (led_on)
+        {
+          led_on = false;
+          digitalWrite(PIN_STATE_LED, LOW);
+        }
+        else
+        {
+          led_on = true;
+          digitalWrite(PIN_STATE_LED, HIGH);
+        }
+      }
+      break;
+      
+    case DEV_IDLE:
+    case DEV_ACTIVE:
+    case DEV_INDUCT:
+      if (!led_on)
+      {
+        led_on = true;
+        digitalWrite(PIN_STATE_LED, HIGH);
+      }
+      break;
+  }
+}
+
 void loop()
 {
   // Poll MQTT
@@ -429,12 +472,15 @@ void loop()
   induct_loop();
   
   lcd_loop();
+  
+  state_led_loop();
     
 } // end void loop()
 
 
 boolean set_dev_state(dev_state_t new_state)
 {
+  static bool first_boot = true;
   boolean ret = true;
 
   switch (new_state)
@@ -444,7 +490,6 @@ boolean set_dev_state(dev_state_t new_state)
     {
       dbg_println("NO_CONN");
       _dev_state =  DEV_NO_CONN;
-      digitalWrite(PIN_SIGNOFF_LIGHT, LOW);
       lcd_display(F("No network"));
       lcd_display(F("conection!"), 1, false);
     }
@@ -454,8 +499,13 @@ boolean set_dev_state(dev_state_t new_state)
 
   case DEV_IDLE:
     // Any state can change to idle
-    digitalWrite(PIN_RELAY, LOW);
-    digitalWrite(PIN_SIGNOFF_LIGHT, LOW);
+    
+   // If this is the first boot, don't change the relay state. This should mean if the tool power is on,
+   // and we reboot, power won't be cut on power up (and should sign straight back on again if the card
+   // is still on the reader).
+    if (!first_boot)
+      relay_off();
+    first_boot = false;
     digitalWrite(PIN_INDUCT_LED, LOW);
     if (_dev_state == DEV_ACTIVE)
       send_action("COMPLETE", "0");
@@ -469,7 +519,6 @@ boolean set_dev_state(dev_state_t new_state)
     {
       _dev_state =  DEV_AUTH_WAIT;
       _auth_start = millis();
-      digitalWrite(PIN_SIGNOFF_LIGHT, HIGH); 
       dbg_println("AUTH_WAIT");
       lcd_display(F("Checking..."));
     }
@@ -481,7 +530,7 @@ boolean set_dev_state(dev_state_t new_state)
     if (_dev_state == DEV_AUTH_WAIT)
     {
       _dev_state = DEV_ACTIVE;
-      digitalWrite(PIN_RELAY, HIGH);
+      relay_on();
       _tool_start_time = millis();
       dbg_println(F("ACTIVE"));
       
@@ -502,7 +551,7 @@ boolean set_dev_state(dev_state_t new_state)
       {
         send_action("COMPLETE", "0");      
         _inductor_card = _card_number;
-        digitalWrite(PIN_RELAY, LOW);        
+        relay_off();       
         lcd_display(F("Scan inductees"));
         lcd_display(F("RFID card....."), 1, false);
       }
@@ -841,6 +890,24 @@ void dbg_println(const __FlashStringHelper *n)
 
   Serial.println(_pmsg+sizeof("INFO"));
 
+}
+
+void relay_on()
+{
+  digitalWrite(TOOL_POWER_LED, HIGH);
+  dbg_println(F("Relay ON"));
+  digitalWrite(PIN_RELAY_SET, HIGH);
+  delay(100);
+  digitalWrite(PIN_RELAY_SET, LOW);
+}
+
+void relay_off()
+{
+  dbg_println(F("Relay OFF"));
+  digitalWrite(PIN_RELAY_RESET, HIGH);
+  delay(100);
+  digitalWrite(PIN_RELAY_RESET, LOW);
+  digitalWrite(TOOL_POWER_LED, LOW);
 }
 
 void dbg_println(const char *msg)

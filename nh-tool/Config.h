@@ -28,15 +28,19 @@
  */
 
 /* Pin assigments */
+//      RFID IRQ         A0
+//      Screw terminal   A1
+//      Card Detect      A2
+#define TOOL_POWER_LED   A3
 //      LCD SDA          A4
 //      LCD SCL          A5
 #define PIN_SIGNOFF_BUTTON 2 /* Uses interupt0 - do not move */
 #define PIN_INDUCT_BUTTON  3 /* Uses interupt1 - do not move */
-//      Ethernet           4
-#define PIN_RELAY          5
+#define PIN_RELAY_RESET    4 /* Note: shared with the (unused) sd card reader on the Ethernet shield */
+#define PIN_RELAY_SET      5 /* (bistable relay) */
 #define PIN_RFID_RST       6 /* RST */
 #define PIN_RFID_SS        7 /* SDA */
-#define PIN_SIGNOFF_LIGHT  8 /* Sign off */
+#define PIN_STATE_LED      8 /* State indicator */
 #define PIN_INDUCT_LED     9
 //      Ethernet SS       10
 //      MISO (RFID+Eth)   11
@@ -73,6 +77,7 @@
 
 #define INDUCT_TIMEOUT 30     // How long in seconds to wait for card when in the induct state
 #define INDUCT_FLASH_FREQ 250 // how fast the induct led flashed after induct button pushed (lower is faster)
+#define STATE_FLASH_FREQ  100 // Same again but for state LED
 
 // Serial/config menu current position
 enum serial_state_t
