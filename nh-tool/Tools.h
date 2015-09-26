@@ -33,7 +33,7 @@ void lcd_display(char *msg, short line = 0, boolean wipe_display = true);
 void lcd_display_mqtt(char *payload);
 
 // IP of MQTT server
-byte server[] = { 192, 168, 0, 1 };
+byte _server[4];
 
 char _base_topic[41];
 char _dev_name [21];

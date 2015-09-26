@@ -37,6 +37,7 @@ extern char _dev_name [21];
 // MAC / IP address of device
 extern byte _mac[6];
 extern byte _ip[4];
+extern byte _server[4];
 
 extern serial_state_t _serial_state;
 
@@ -93,6 +94,11 @@ void serial_process(char *cmd)
   {
     serial_set_topic(cmd);  
     serial_main_menu("0");
+  } 
+  else if (_serial_state == SS_SET_SERVER_IP)
+  {
+    serial_set_server_ip(cmd);
+    serial_main_menu("0");
   }
 }
 
@@ -117,15 +123,19 @@ void serial_main_menu(char *cmd)
     serial_set_ip(NULL);
     break;
 
-  case 4: // "[ 4 ] Set name"
+  case 4: // "[ 4 ] Set server IP address"
+    serial_set_server_ip(NULL);
+    break;
+
+  case 5: // "[ 5 ] Set name"
     serial_set_name(NULL);
     break;    
 
-  case 5: // "[ 5 ] Set base topic"
+  case 6: // "[ 6 ] Set base topic"
     serial_set_topic(NULL);
     break;    
 
-  case 6: // "[ 6 ] Reset/reboot"
+  case 7: // "[ 7 ] Reset/reboot"
     Serial.println("Reboot....");
     wdt_enable(WDTO_2S); // Watchdog abuse...
     while(1);
@@ -147,9 +157,10 @@ void serial_show_main_menu()
   Serial.println(F("[ 1 ] Show current settings"));
   Serial.println(F("[ 2 ] Set MAC address"));
   Serial.println(F("[ 3 ] Set IP address"));
-  Serial.println(F("[ 4 ] Set name"));
-  Serial.println(F("[ 5 ] Set base topic"));
-  Serial.println(F("[ 6 ] Reset/reboot"));
+  Serial.println(F("[ 4 ] Set server IP address"));
+  Serial.println(F("[ 5 ] Set name"));
+  Serial.println(F("[ 6 ] Set base topic"));
+  Serial.println(F("[ 7 ] Reset/reboot"));
   Serial.print(F("Enter selection: "));  
 }
 
@@ -167,6 +178,10 @@ void serial_show_settings()
 
   Serial.print(F("IP address : "));
   sprintf(buf, "%d.%d.%d.%d", _ip[0], _ip[1], _ip[2], _ip[3]);
+  Serial.println(buf);
+
+  Serial.print(F("Server IP  : "));
+  sprintf(buf, "%d.%d.%d.%d", _server[0], _server[1], _server[2], _server[3]);
   Serial.println(buf);
 
   Serial.print(F("Name       : "));
@@ -249,6 +264,49 @@ void serial_set_ip(char *cmd)
   return;
 }
 
+void serial_set_server_ip(char *cmd)
+/* Validate (and save, if valid) the supplied IP address. Note that validation *
+ * is very crude, e.g. there is no rejection of class E, D, loopback, etc      */
+{
+  _serial_state = SS_SET_SERVER_IP;
+  int ip_addr[4];
+  int c;
+  byte ip_good = true;
+
+  if (cmd == NULL)
+  {
+    Serial.print(F("\nEnter server IP address:"));
+  } 
+  else
+  {
+    // IP address entered - validate
+    c = sscanf(cmd, "%d.%d.%d.%d", &ip_addr[0], &ip_addr[1], &ip_addr[2], &ip_addr[3]);
+    if (c != 4)
+    {
+      ip_good = false;
+    } 
+    else
+    {
+      for (int i=0; i < 4; i++)
+        if (ip_addr[i] < 0 || ip_addr[i] > 255)
+          ip_good = false;
+    }
+
+    if (ip_good)
+    {
+      Serial.println(F("\nOk - Saving address"));
+      set_server_ip(ip_addr);
+    } 
+    else
+    {
+      Serial.println(F("\nInvalid IP address"));
+    }
+    // Return to main menu
+    _serial_state = SS_MAIN_MENU;
+  }
+  return;
+}
+
 void serial_set_name(char *cmd)
 /* Set device name, and output confirmation */
 {
@@ -318,6 +376,16 @@ void set_ip(int *ip_addr)
   {
     EEPROM.write(EEPROM_IP+i, ip_addr[i]);
     _ip[i] = ip_addr[i];
+  }
+}
+
+void set_server_ip(int *ip_addr)
+/* Write ip_addr to EEPROM */
+{
+  for (int i = 0; i < 4; i++)
+  {
+    EEPROM.write(EEPROM_SERVER_IP+i, ip_addr[i]);
+    _server[i] = ip_addr[i];
   }
 }
 

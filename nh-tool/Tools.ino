@@ -64,7 +64,7 @@
 
 
 EthernetClient _ethClient;
-PubSubClient _client(server, MQTT_PORT, callbackMQTT, _ethClient);
+PubSubClient *_client;
 LiquidCrystal_I2C lcd(0x27,16,2);  // 16x2 display at address 0x27
 MFRC522 _rfid_reader(PIN_RFID_SS, PIN_RFID_RST);
 void relay_off();
@@ -112,7 +112,7 @@ void callbackMQTT(char* topic, byte* payload, unsigned int length)
     {
       dbg_println(F("Status Request"));
       sprintf(buf, "Running: %s", _dev_name);      
-      _client.publish(P_STATUS, buf);
+      _client->publish(P_STATUS, buf);
     }
   }    
 
@@ -245,15 +245,15 @@ void checkMQTT()
   char *pToolTopic;
   static boolean first_connect = true;
 
-  if (!_client.connected()) 
+  if (!_client->connected()) 
   {
-    if (_client.connect(_dev_name)) 
+    if (_client->connect(_dev_name)) 
     {
       char buf[30];
 
       dbg_println(F("Connected to MQTT"));
       sprintf(buf, "Restart: %s", _dev_name);
-      _client.publish(P_STATUS, buf);
+      _client->publish(P_STATUS, buf);
 
       // Subscribe to <tool_topic>/#, without having to declare another large buffer just for this.
       pToolTopic = tool_topic + strlen(tool_topic);
@@ -261,11 +261,11 @@ void checkMQTT()
       *(pToolTopic+1) = '#';
       *(pToolTopic+2) = '\0';
       Serial.println(tool_topic);
-      _client.subscribe(tool_topic);
+      _client->subscribe(tool_topic);
       *pToolTopic = '\0';
 
       Serial.println(S_STATUS);
-      _client.subscribe(S_STATUS); 
+      _client->subscribe(S_STATUS); 
 
       // Update state - but be sure not to deactive tool if connection was lost/restored whilst in use
       if (first_connect)
@@ -297,6 +297,7 @@ void checkMQTT()
 void setup()
 {
   wdt_disable();
+  char build_ident[17]="";
   Serial.begin(9600);
   dbg_println(F("Start!"));
   _serial_state = SS_MAIN_MENU;
@@ -326,6 +327,9 @@ void setup()
   for (int i = 0; i < 4; i++)
     _ip[i] = EEPROM.read(EEPROM_IP+i);
 
+  for (int i = 0; i < 4; i++)
+    _server[i] = EEPROM.read(EEPROM_SERVER_IP+i);
+
   for (int i = 0; i < 40; i++)
     _base_topic[i] = EEPROM.read(EEPROM_BASE_TOPIC+i);
   _base_topic[40] = '\0';
@@ -340,11 +344,15 @@ void setup()
   dbg_println(F("Init LCD"));
   lcd.init();
   lcd.backlight();
-  lcd_display(F("Tools ctl v0.3"));
+  snprintf(build_ident, sizeof(build_ident), "FW:%s", BUILD_IDENT);
+  lcd_display(build_ident);
+  dbg_println(build_ident);
   lcd_display(_dev_name,1, false);
 
   dbg_println(F("Start Ethernet"));
   Ethernet.begin(_mac, _ip);
+  
+  _client = new PubSubClient(_server, MQTT_PORT, callbackMQTT, _ethClient);
 
   dbg_println(F("Init RFID"));
   _rfid_reader.PCD_Init();
@@ -366,7 +374,8 @@ void setup()
   dbg_println(F("Setup done..."));
 
   Serial.println();
-  serial_show_main_menu();  
+  serial_show_main_menu();
+  wdt_enable(WDTO_8S);
 } // end void setup()
 
 void signoff_button()
@@ -453,9 +462,11 @@ void state_led_loop()
 
 void loop()
 {
+  wdt_reset();
+
   // Poll MQTT
   // should cause callback if there's a new message
-  _client.loop();
+  _client->loop();
 
   // are we still connected to MQTT
   checkMQTT();
@@ -822,7 +833,7 @@ void send_action(const char *act, char *msg)
   int tt_len = strlen(tool_topic);
   tool_topic[tt_len] = '/';
   strcpy(tool_topic+tt_len+1, act);
-  _client.publish(tool_topic, msg);
+  _client->publish(tool_topic, msg);
   tool_topic[tt_len] = '\0';
 }
 

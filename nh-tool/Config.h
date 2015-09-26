@@ -53,6 +53,7 @@
 #define EEPROM_IP            6 //  4 bytes 
 #define EEPROM_BASE_TOPIC   10 // 40 bytes   e.g. "nh/tools/"
 #define EEPROM_NAME         50 // 20 bytes   e.g. "laser"
+#define EEPROM_SERVER_IP    70 //  4 bytes
 
 
 #define MQTT_PORT 1883
@@ -86,7 +87,8 @@ enum serial_state_t
   SS_SET_MAC,
   SS_SET_IP,
   SS_SET_NAME,
-  SS_SET_TOPIC
+  SS_SET_TOPIC,
+  SS_SET_SERVER_IP
 };
 
 
