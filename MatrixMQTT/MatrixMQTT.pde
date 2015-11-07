@@ -344,7 +344,7 @@ void callbackMQTT(char* topic, byte* payload, int length) {
         Serial.println("Push XRF");
 #endif        
         pushXRF(topic, payload, length);
-    } else if (!strcmp(S_DOOR_BUTTON, topic)) {
+    } else if (!strcmp(S_DOOR_BELL, topic)) {
         // check for door state messages
         if (strncmp(DOOR_INNER, (char*)payload, strlen(DOOR_INNER)) == 0) {
 			doorButtonState = DOOR_STATE_INNER;
@@ -376,7 +376,7 @@ void checkMQTT() {
             client.subscribe(S_TWITTER);
             client.subscribe(S_MAIL);
             client.subscribe(S_XRF);
-            client.subscribe(S_DOOR_BUTTON);
+            client.subscribe(S_DOOR_BELL);
             client.subscribe(S_LAST_MAN_STATE);
 #ifdef DEBUG_PRINT
 			Serial.println("MQTT Reconect");

@@ -123,7 +123,7 @@ byte server[] = { 192, 168, 0, 1 };
 #define S_MAIL_MASK   "nh/mail/rx/"
 #define S_XRF       "nh/xrf/tx/#"
 #define S_XRF_MASK  "nh/xrf/tx/"
-#define S_DOOR_BUTTON    "nh/gk/DoorButton"
+#define S_DOOR_BELL    "nh/gk/bell/LEDMatrix" // No bell at the moment, so not actually used
 #define S_LAST_MAN_STATE	"nh/gk/LastManState"
 
 
@@ -131,7 +131,7 @@ byte server[] = { 192, 168, 0, 1 };
 
 #define P_TX		"nh/mb/rx"
 #define P_XRF       "nh/xrf/rx/"
-#define P_DOOR_BUTTON		"nh/gk/DoorButton"
+#define P_DOOR_BUTTON		"nh/gk/2/DoorButton"
 
 
 // Status Topic, use to say we are alive or DEAD (will)
