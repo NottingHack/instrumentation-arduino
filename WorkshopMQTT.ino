@@ -23,6 +23,7 @@
     000 - Started 17/03/2013
     001 - Initial release done for arduino 0022 and pubsub client 1.6!!!
     002 - Update for pubsub 1.9 / Arduino 1.0.3 (29/03/2013)
+    004 - Update in line with Gatekeeper changes for multiple doors
  
  Known issues:
 
@@ -33,7 +34,7 @@
  */
 
 #define VERSION_NUM 001
-#define VERSION_STRING F("WorkshopMQTT ver: 002")
+#define VERSION_STRING F("WorkshopMQTT ver: 004")
 
 // Uncomment for debug prints
 #define DEBUG_PRINT
@@ -95,7 +96,7 @@ void callbackMQTT(char* topic, byte* payload, unsigned int length)
 #endif
       client.publish(P_STATUS, RUNNING);
     } // end if
-  } else if (!strncmp(S_DOOR_BUTTON, topic, sizeof(S_DOOR_BUTTON)-1)) 
+  } else if (!strncmp(S_DOOR_BELL, topic, sizeof(S_DOOR_BELL)-1)) 
   {
     // check for door state messages
     if (strncmp(DOOR_INNER, (char*)payload, strlen(DOOR_INNER)) == 0) 
@@ -121,7 +122,7 @@ void checkMQTT() {
     if(!client.connected()) {
     if (client.connect(CLIENT_ID)) {
       client.publish(P_STATUS, RESTART);
-      client.subscribe(S_DOOR_BUTTON);
+      client.subscribe(S_DOOR_BELL);
       client.subscribe(S_STATUS);      
 #ifdef DEBUG_PRINT
       Serial.println(F("MQTT Reconect"));

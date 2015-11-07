@@ -51,9 +51,9 @@ boolean doorButtonState = 0;
 #define DOOR_STATE_INNER 1
 #define DOOR_STATE_OUTER 2
 #define DOOR_STATE_REAR 3
-#define DOOR_INNER "INNER"
-#define DOOR_OUTER "OUTER"
-#define DOOR_REAR "REAR"
+#define DOOR_INNER "1"
+#define DOOR_OUTER "2"
+#define DOOR_REAR "3"
 
 // MQTT 
 
@@ -68,10 +68,10 @@ byte server[] = { 192, 168, 0, 1 };
 #define CLIENT_ID "Workshop"
 
 // Subscribe to topics
-#define S_DOOR_BUTTON    "nh/gk/DoorButton"
+#define S_DOOR_BELL    "nh/gk/bell/Workshop"
 
 // Publish Topics
-#define P_DOOR_BUTTON           "nh/gk/DoorButton"
+#define P_DOOR_BUTTON           "nh/gk/3/DoorButton"
 #define P_LIGHT_LEVEL           "nh/lightlevel/workshop"
 
 // Status Topic, use to say we are alive or DEAD (will)
