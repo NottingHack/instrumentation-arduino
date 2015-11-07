@@ -130,14 +130,14 @@ byte server[] = { 192, 168, 0, 1 };
 #define CLIENT_ID "Gatekeeper"
 
 // Subscribe to topics
-#define S_UNLOCK		"nh/gk/Unlock"
-#define S_DOOR_BUTTON           "nh/gk/DoorButton"
+#define S_UNLOCK		"nh/gk/1/Unlock"
+#define S_DOOR_BELL          "nh/gk/bell/ComfyArea"
 
 // Publish Topics
-#define P_DOOR_STATE		"nh/gk/DoorState"
-#define P_KEYPAD		"nh/gk/Keypad"
-#define P_DOOR_BUTTON		"nh/gk/DoorButton"
-#define P_RFID			"nh/gk/RFID"
+#define P_DOOR_STATE		"nh/gk/1/DoorState"
+#define P_KEYPAD		"nh/gk/1/Keypad"
+#define P_DOOR_BUTTON		"nh/gk/1/DoorButton"
+#define P_RFID			"nh/gk/1/RFID"
 #define P_LAST_MAN_STATE	"nh/gk/LastManState"
 
 // Status Topic, use to say we are alive or DEAD (will)
@@ -151,9 +151,9 @@ byte server[] = { 192, 168, 0, 1 };
 #define DOOR_STATE_INNER 1
 #define DOOR_STATE_OUTER 2
 #define DOOR_STATE_REAR 3
-#define DOOR_INNER "INNER"
-#define DOOR_OUTER "OUTER"
-#define DOOR_REAR "REAR"
+#define DOOR_INNER "1"
+#define DOOR_OUTER "2"
+#define DOOR_REAR "3"
 
 
 

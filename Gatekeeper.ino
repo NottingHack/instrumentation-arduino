@@ -54,7 +54,7 @@
  */
 
 #define VERSION_NUM 003
-#define VERSION_STRING "Gatekeeper Ver: 003"
+#define VERSION_STRING "Gatekeeper Ver: 004"
 
 // Uncomment for debug prints
 // This will not work if the RFID module IS plugged in!!
@@ -108,7 +108,7 @@ void callbackMQTT(char* topic, byte* payload, unsigned int length) {
 		if (strncmp(STATUS_STRING, (char*)payload, strlen(STATUS_STRING)) == 0) {
 			client.publish(P_STATUS, RUNNING);
 		} // end if
-	} else if (!strcmp(S_DOOR_BUTTON, topic)) 
+	} else if (!strcmp(S_DOOR_BELL, topic)) 
         {
           // Request to ring door bell - either outer or rear, but not inner, as that button is connected to this arduino
           if (!strncmp(DOOR_OUTER, (char*)payload, strlen(DOOR_OUTER)))        // Outer door bell
@@ -432,7 +432,7 @@ void checkMQTT()
       client.publish(P_STATUS, RESTART);
       client.subscribe(S_UNLOCK);
       client.subscribe(S_STATUS);
-      client.subscribe(S_DOOR_BUTTON);
+      client.subscribe(S_DOOR_BELL);
     } // end if
   } // end if
 } // end checkMQTT()
