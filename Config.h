@@ -65,6 +65,7 @@ byte server[] = { 192, 168, 0, 1 };
 #define STATUS_STRING "STATUS"
 #define RUNNING "Running: note_acceptor"
 #define RESTART "Restart: note_acceptor"
+#define JAMMED "Jammed: note_acceptor"
 
 // Client id for connecting to MQTT
 #define CLIENT_ID "note_acceptor"

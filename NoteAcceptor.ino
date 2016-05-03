@@ -84,6 +84,7 @@ char rfid_serial[20];
 char tran_id[10]; // transaction id
 char mqtt_rx_buf[45];
 unsigned long state_entered;
+char status_msg[31];
 
 
 state_t state;
@@ -128,7 +129,7 @@ void callbackMQTT(char* topic, byte* payload, unsigned int length)
     if (!strncmp(STATUS_STRING, (char*)payload, strlen(STATUS_STRING)))
     {
       // dbg_println(F("Status Request"));
-      client.publish(P_STATUS, RUNNING);
+      client.publish(P_STATUS, status_msg);
     }
   }
 
@@ -376,6 +377,8 @@ void setup()
   pinMode(PIN_CANCEL_BUTTON, INPUT);
   digitalWrite(PIN_CANCEL_BUTTON, HIGH);
   
+  strcpy(status_msg, RUNNING);
+  
   dbg_println(F("Start Ethernet"));
   Ethernet.begin(mac, ip);
 
@@ -500,9 +503,12 @@ uint8_t set_state(state_t new_state)
       memset(rfid_serial, 0, sizeof(rfid_serial));
       memset(tran_id, 0, sizeof(tran_id));
       state = STATE_JAMMED;
+      strcpy(status_msg, JAMMED);
 
       // Remember this, so a power cycle doesn't clear this state (as it'll likley still be physically jammed)
       EEPROM.write(EEPROM_JAMMED, 1);
+      sprintf(pmsg, "JAMMED", rfid_serial, tran_id);
+      client.publish(P_NOTE_TX, pmsg);
       break;
 
     default:
