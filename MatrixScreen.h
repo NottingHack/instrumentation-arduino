@@ -8,7 +8,7 @@
 #include <stdint.h>
 
 typedef unsigned char byte;
-typedef void (*set_xy_fuct)(uint16_t,byte,byte);
+typedef void (*set_xy_fuct)(uint16_t,uint16_t,byte);
 
 
 

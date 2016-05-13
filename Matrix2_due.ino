@@ -1,3 +1,39 @@
+/*   
+ * Copyright (c) 2016, Daniel Swann <hs@dswann.co.uk>
+ * All rights reserved.
+ * 
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * 1. Redistributions of source code must retain the above copyright notice,
+ *    this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ * 3. Neither the name of the owner nor the names of its
+ *    contributors may be used to endorse or promote products derived from
+ *    this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+ * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGE.
+
+
+
+ * Target controller = Arduino Dued
+ * Development platform = Arduino IDE 1.6.5$
+
+ */
+
+
 #include <climits> 
 
 #include <DueTimer.h>
@@ -45,9 +81,11 @@ MatrixScreen *_current_screen;
 #define W5100_RESET_PIN 14
 #define S_STATUS       "nh/status/req"
 #define P_STATUS       "nh/status/res"
-#define S_BOOKINGS     "nh/tools/laser/BOOKINGS"
+#define S_BOOKINGS     "nh/bookings/laser/nownext"
+#define P_BOOKINGS     "nh/bookings/poll"
 #define S_LOCAL_ALERT  "nh/tools/laser/ALERT"
 #define S_GLOBAL_ALERT "nh/ALERT"
+#define TOOL_NAME      "laser"
 
 #define DEV_NAME    "LaserDisplay"
 #define STATUS_STRING "STATUS"
@@ -308,14 +346,13 @@ void checkMQTT()
       Serial.println("Now connected");
       _connected = true;
       char buf[30];
-      
+
       sprintf(buf, "Restart: %s", DEV_NAME);
       _client.publish(P_STATUS, buf);
       Serial.println("after pub");
-      
+
       // Also request the latest booking info
-      _client.publish(S_BOOKINGS, "POLL");
-      
+    //_client.publish(P_BOOKINGS, TOOL_NAME);  - now a retained topic, so no need to poll
 
       // Subscribe
       _client.subscribe(S_BOOKINGS);
@@ -328,7 +365,7 @@ void checkMQTT()
   }
 }
 
-void set_xy (uint16_t x, byte y, byte val)
+void set_xy (uint16_t x, uint16_t y, byte val)
 {
   if (val)
     _buf[!current_buf][y][x/8] |= 1 << (7-(x%8));    // Set bit
