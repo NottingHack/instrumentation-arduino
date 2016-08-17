@@ -309,6 +309,7 @@ void setup()
   pinMode(PIN_INDUCT_LED, OUTPUT); 
   pinMode(PIN_INDUCT_BUTTON, INPUT);
   pinMode(PIN_SIGNOFF_BUTTON, INPUT);
+  pinMode(PIN_STATE_LED, OUTPUT);
 
   digitalWrite(PIN_RELAY_RESET, LOW);
   digitalWrite(PIN_RELAY_SET  , LOW);
