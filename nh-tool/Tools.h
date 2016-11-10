@@ -1,3 +1,5 @@
+#include <MFRC522.h>
+
 // Device states
 enum dev_state_t
 {
@@ -8,6 +10,8 @@ enum dev_state_t
   DEV_INDUCT,     // Waiting for card to add to inducted list
   DEV_INDUCT_WAIT // Asked server to induct new card, waiting for reply.
 };
+
+typedef MFRC522::Uid rfid_uid;
 
 
 void callbackMQTT(char* topic, byte* payload, unsigned int length);
@@ -22,7 +26,7 @@ void loop();
 boolean set_dev_state(dev_state_t new_state);
 void lcd_loop();
 void poll_rfid();
-int induct_member(unsigned long inductee, unsigned long inductor);
+int induct_member(rfid_uid inductee, rfid_uid inductor);
 void check_buttons();
 void send_action(const char *act, char *msg);
 char *time_diff_to_str(unsigned long start_time, unsigned long end_time);
@@ -31,6 +35,11 @@ void dbg_println(const char *msg);
 void lcd_display(const __FlashStringHelper *n, short line = 0, boolean wipe_display = true);
 void lcd_display(char *msg, short line = 0, boolean wipe_display = true);
 void lcd_display_mqtt(char *payload);
+void relay_off();
+void relay_on();
+void cpy_rfid_uid(rfid_uid *dst, rfid_uid *src);
+bool eq_rfid_uid(rfid_uid u1, rfid_uid r2);
+void uid_to_hex(char *uidstr, rfid_uid uid);
 
 // IP of MQTT server
 byte _server[4];
