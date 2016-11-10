@@ -4,7 +4,7 @@
 BOARD_TAG    = uno
 ARDUINO_PORT = /dev/ttyACM0
 ARDUINO_LIBS = HCARDU0023_LiquidCrystal_I2C_V2_1 SoftwareSerial Wire SPI Ethernet PubSubClient rfid EEPROM
-USER_LIB_PATH := $(realpath ../lib)
+USER_LIB_PATH := $(realpath ../Libraries)
 
 include /usr/share/arduino/Arduino.mk
 
