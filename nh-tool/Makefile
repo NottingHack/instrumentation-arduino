@@ -9,4 +9,4 @@ USER_LIB_PATH := $(realpath ../Libraries)
 BUILD_IDENT = $(shell git describe --always --dirty)
 CPPFLAGS += -D'BUILD_IDENT="$(BUILD_IDENT)"'
 
-include /usr/share/arduino/Arduino.mk
+include $(ARDMK_DIR)/Arduino.mk
