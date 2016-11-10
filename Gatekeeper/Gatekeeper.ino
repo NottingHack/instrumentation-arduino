@@ -68,6 +68,8 @@
 #include "Config.h"
 #include "Backdoor.h"
 
+void callbackMQTT(char* topic, byte* payload, unsigned int length);
+
 EthernetClient ethClient;
 PubSubClient client(server, MQTT_PORT, callbackMQTT, ethClient);
 

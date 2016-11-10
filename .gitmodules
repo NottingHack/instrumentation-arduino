@@ -1,0 +1,15 @@
+[submodule "Libraries/DueTimer"]
+	path = Libraries/DueTimer
+	url = git@github.com/ivanseidel/DueTimer.git
+[submodule "Libraries/ArduinoJson"]
+	path = Libraries/ArduinoJson
+	url = git@github.com:bblanchon/ArduinoJson.git
+[submodule "Libraries/MatrixText"]
+	path = Libraries/MatrixText
+    url=git@github.com:daniel1111/MatrixText.git
+[submodule "Libraries/OneWire"]
+	path = Libraries/OneWire
+	url = git@github.com:PaulStoffregen/OneWire.git
+[submodule "Libraries/NanodeUNIO"]
+	path = Libraries/NanodeUNIO
+	url = git@github.com:sde1000/NanodeUNIO.git

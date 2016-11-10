@@ -44,13 +44,6 @@ ToDo:
 */
 
 
-
-// include core Wiring API
-#include "WProgram.h"
-#include <avr/pgmspace.h>
-//#include <string.h>
-
-
 // include this library's description file
 #include "LT1441M.h"
 

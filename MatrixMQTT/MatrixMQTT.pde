@@ -120,7 +120,8 @@ void pollDoorBell();
 // compile on holly need this befor callbackMQTT
 LT1441M myMatrix(GSI, GAEO, LATCH, CLOCK, RAEO, RSI);
 // compile on holly needs this after callbackMQTT
-PubSubClient client(server, MQTT_PORT, callbackMQTT);
+EthernetClient ethClient;
+PubSubClient client(server, MQTT_PORT, callbackMQTT, ethClient);
 char pmsg[DMSG];
 char LLAPmsg[LLAP_BUFFER_LENGTH];
 
