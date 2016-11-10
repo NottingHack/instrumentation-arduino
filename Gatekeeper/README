@@ -1,0 +1,4 @@
+Gatekeeper is Nottingham Hackspace's access control system.
+The system is in two parts the electronics/firmware runing on a Nanode and the software/DB that runs on Holly
+For more extensive details check out our wiki page
+http://wiki.nottinghack.org.uk/wiki/Gatekeeper
