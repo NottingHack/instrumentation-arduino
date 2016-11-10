@@ -3,7 +3,7 @@
 BOARD_TAG = uno
 ARDUINO_PORT = /dev/ttyUSB0
 ARDUINO_LIBS = LiquidCrystal_I2C PubSubClient MFRC522 EEPROM Wire SPI Ethernet
-USER_LIB_PATH := $(realpath ../libs)
+USER_LIB_PATH := $(realpath ../Libraries)
 
 # Embed a reference to the version in the binary
 BUILD_IDENT = $(shell git describe --always --dirty)
