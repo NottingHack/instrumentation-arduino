@@ -73,6 +73,7 @@ dev_state_t    _dev_state;
 char _pmsg[DMSG];
 
 
+
 unsigned long _tool_start_time;
 unsigned long _auth_start;
 volatile boolean _induct_button_pushed;
@@ -80,12 +81,12 @@ volatile unsigned long _induct_button_pushed_time;
 volatile boolean _signoff_button_pushed;
 volatile unsigned long _signoff_button_pushed_time;
 boolean _can_induct;
-unsigned long _last_rejected_card = 0;
+rfid_uid _last_rejected_card = {0};
 unsigned long _last_rejected_read = 0;
-unsigned long _card_number;
+rfid_uid _card_number;
 boolean _authd_card_present = false;
 unsigned long _authd_card_last_seen = 0; // How long ago was the card used to active the tool last see
-unsigned long _inductor_card = 0;
+rfid_uid _inductor_card = {0};
 boolean _just_inducted = false; // used to ensure that when a member is inducted, they're not immiedaley signed on. Instead require the card to be removed (so we see no card), before allowing it to be used to sign on 
 int _rfid_polls_without_card=0;
 char tool_topic[20+40+10+4]; // name + _base_topic + action + delimiters + terminator
@@ -152,7 +153,7 @@ void callbackMQTT(char* topic, byte* payload, unsigned int length)
       // Card's been rejected. Go back to idle.
       set_dev_state(DEV_IDLE);
       dbg_println(F("Card rejected!"));
-      _last_rejected_card = _card_number;
+      cpy_rfid_uid(&_last_rejected_card, &_card_number);
       _last_rejected_read = millis();
       
       // Show message on LCD
@@ -501,8 +502,9 @@ boolean set_dev_state(dev_state_t new_state)
       if (_dev_state == DEV_ACTIVE)
       {
         send_action("COMPLETE", "0");      
-        _inductor_card = _card_number;
-        digitalWrite(PIN_RELAY, LOW);        
+
+        cpy_rfid_uid(&_inductor_card, &_card_number);
+        digitalWrite(PIN_RELAY, LOW);  
         lcd_display(F("Scan inductees"));
         lcd_display(F("RFID card....."), 1, false);
       }
@@ -575,8 +577,6 @@ void poll_rfid()
   char rfid_serial[20];
   boolean got_card = false;
 
-  byte *pCard_number = (byte*)&_card_number;
-
   if ((_dev_state != DEV_IDLE) && (_dev_state != DEV_ACTIVE) && (_dev_state != DEV_INDUCT))
     return;
 
@@ -612,23 +612,22 @@ void poll_rfid()
     }
     
     // If someone's just this moment been inducted, give them a chance to remove their card before signing on 
-   if (_just_inducted)
-     return;
+    if (_just_inducted)
+      return;
 
-    // Convert 4x bytes received to long (4 bytes)
-    for (int n=0, i = _rfid_reader.uid.size-1; (i >= 0) && (n < 4); i--, n++) 
-      *(pCard_number++) = _rfid_reader.uid.uidByte[i];
+    // store UID in _card_number
+    cpy_rfid_uid(&_card_number, &_rfid_reader.uid);
 
-    ultoa(_card_number, rfid_serial, 10);
-    
     Serial.println("GOT CARD DATA");
-            
+
     // If the same card has already been rejected in the last 10s, don't bother querying the server again
-    if ((_card_number == _last_rejected_card) && ((millis() - _last_rejected_read) < 10000))
+    if ((eq_rfid_uid(_card_number, _last_rejected_card)) && ((millis() - _last_rejected_read) < 10000))
       return;
 
     // Send AUTH request to server
-    sprintf(_pmsg, "%s", rfid_serial);    
+    uid_to_hex(rfid_serial, _card_number);
+    sprintf(_pmsg, "%s", rfid_serial);
+
     send_action("AUTH", _pmsg);
 
     // Keep a copy of the card ID we're auth'ing
@@ -655,8 +654,8 @@ void poll_rfid()
         _rfid_polls_without_card=0;
         // card found & serial read - see if it's for the auth'd card
         boolean match = true;
-        // Convert (last) 4 bytes of cards UID to long (4 bytes)
-        for (int n=0, i = _rfid_reader.uid.size-1; (i >= 0) && (n < 4); i--, n++)  
+
+        for (unsigned int i=0; i < _rfid_reader.uid.size && (i < sizeof(rfid_uid)); i--)
         {          
           if (_rfid_reader.uid.uidByte[i] != card.uidByte[i])
             match = false;
@@ -696,22 +695,19 @@ void poll_rfid()
       if (_rfid_reader.PICC_ReadCardSerial())      
       {
         _rfid_polls_without_card=0;
-        unsigned long new_card_number;
-        byte *pNewCard_number = (byte*)&new_card_number;
-    
-        // Convert (last) 4 bytes of cards UID to long (4 bytes)
-        for (int n=0, i = _rfid_reader.uid.size-1; (i >= 0) && (n < 4); i--, n++) 
-          *(pNewCard_number++) = _rfid_reader.uid.uidByte[i];
-          
-       if (new_card_number == _inductor_card)
-       {
-         _authd_card_present = true;
-       }
-       else
-       {
-         // Card seen that isn't the inductors card, so send induction request to server
-         induct_member(new_card_number, _inductor_card);
-       }
+        rfid_uid new_card_number;
+
+        cpy_rfid_uid(&new_card_number, &_rfid_reader.uid);
+
+        if (eq_rfid_uid(new_card_number, _inductor_card))
+        {
+          _authd_card_present = true;
+        }
+        else
+        {
+          // Card seen that isn't the inductors card, so send induction request to server
+          induct_member(new_card_number, _inductor_card);
+        }
       }
       else
         _authd_card_present = false;
@@ -721,14 +717,19 @@ void poll_rfid()
   }
 }
 
-int induct_member(unsigned long inductee, unsigned long inductor)
+int induct_member(rfid_uid inductee, rfid_uid inductor)
 {
-  char buf[40]="";
+  char buf[22+22+2]="";
+
+  char inductorStr[22] = "";
+  char inducteeStr[22] = "";
+  uid_to_hex(inductorStr, inductor);
+  uid_to_hex(inducteeStr, inductee);
 
   // Send induct message to server
-  sprintf(buf, "%lu:%lu", inductor, inductee);
+  sprintf(buf, "%s:%s", inductorStr, inducteeStr);
   send_action("INDUCT", buf);
-  
+
   // Set state to waiting
   set_dev_state(DEV_INDUCT_WAIT);
   
@@ -843,6 +844,41 @@ void dbg_println(const __FlashStringHelper *n)
 
 }
 
+void cpy_rfid_uid(rfid_uid *dst, rfid_uid *src)
+{
+  memcpy(dst, src, sizeof(rfid_uid));
+}
+
+bool eq_rfid_uid(rfid_uid u1, rfid_uid u2)
+{
+  if (memcmp(&u1, &u2, sizeof(rfid_uid)))
+    return false;
+  else
+    return true;
+}
+
+void uid_to_hex(char *uidstr, rfid_uid uid)
+{
+  switch (uid.size)
+  {
+    case 4:
+      sprintf(uidstr, "%02x%02x%02x%02x", uid.uidByte[0], uid.uidByte[1], uid.uidByte[2], uid.uidByte[3]);
+      break;
+
+    case 7:
+      sprintf(uidstr, "%02x%02x%02x%02x%02x%02x%02x", uid.uidByte[0], uid.uidByte[1], uid.uidByte[2], uid.uidByte[3], uid.uidByte[4], uid.uidByte[5], uid.uidByte[6]);
+      break;
+
+    case 10:
+      sprintf(uidstr, "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x", uid.uidByte[0], uid.uidByte[1], uid.uidByte[2], uid.uidByte[3], uid.uidByte[4], uid.uidByte[5], uid.uidByte[6], uid.uidByte[7], uid.uidByte[8], uid.uidByte[9]);
+      break;
+
+    default:
+      sprintf(uidstr, "ERR:%d", uid.size);
+      break;
+  }
+}
+
 void dbg_println(const char *msg)
 {/*
   byte *payload;
@@ -859,7 +895,4 @@ void dbg_println(const char *msg)
  */
   Serial.println(msg);
 }
-
-
-
 
