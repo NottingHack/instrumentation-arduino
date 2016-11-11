@@ -20,7 +20,7 @@ $ sudo apt-get install arduino-mk
 .bash_rc
 ```
 export ARDUINO_DIR=/home/sudar/apps/arduino-1.0.5
-export ARDMK_DIR=/usr/share/arudino
+export ARDMK_DIR=/usr/share/arduino
 ```
 
 for macOS
@@ -32,6 +32,6 @@ $ brew install arduino-mk
 .bash_profile
 ```
 export ARDUINO_DIR=/Applications/Arduino.app/Contents/Java
-export ARDMK_DIR=/usr/local/opt/arudino-mk
+export ARDMK_DIR=/usr/local/opt/arduino-mk
 ```
 

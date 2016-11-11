@@ -1,0 +1,151 @@
+/*
+ *  RDM880.cpp
+ *  Nottingham Hackspace Instrumentaion
+ *
+ *  Created by Matt Lloyd on 2016.
+ *  Copyright Matt Lloyd. All rights reserved.
+ *
+ */
+
+#include <Arduino.h>
+#include "RDM880.h"
+
+RDM880::RDM880(Stream &stream)
+{
+    _myStream = &stream;
+    _stationId = 0x00;
+}
+
+RDM880::RDM880(Stream &stream, uint8_t stationId)
+{
+    _myStream = &stream;
+    _stationId = stationId;
+}
+
+uint8_t RDM880::mfRead(MIFARE_Packet *packet, uint8_t *readData) 
+{
+    sendCommand(MIFARE_CMD_READ, packet, sizeof(MIFARE_Packet));
+
+    if (!readResponse()) {
+        return -1;
+    }
+
+    if (_responseBuf[STATUS_BYTE] == STATUS_CMD_OK) {
+        memcopy(readData, _responseBuf[DATA_START_BYTE+4], _responseBuf[LEN_BYTE]-4);
+    }
+    return _responseBuf[STATUS_BYTE];
+}
+
+uint8_t RDM880::mfWrite(MIFARE_Packet *packet, uint8_t *dataToWrite)
+{
+    sendCommand(MIFARE_CMD_WRITE, packet, sizeof(MIFARE_Packet), dataToWrite, packet.blockCount*16);
+
+    if (!readResponse()) {
+        return -1;
+    }
+
+    return _responseBuf[STATUS_BYTE];
+}
+
+uint8_t RDM880::mfGetSerial(uint8_t mode, uint8_t halt)
+{
+    // uint8_t *dataBuffer[1];
+    // dataBuffer[0] = 0x26;
+    // sendCommand(0x26, dataBuffer, 1);
+    sendCommand(MIFARE_CMD_GetSNR, [mode, halt], 2);
+
+    // get the serial number
+    if (!readResponse()) {
+        // crab back packet
+        return false;
+    }
+
+    // check the status flag
+    if (_responseBuf[STATUS_BYTE] != STATUS_CMD_OK) {
+        return false;
+    }
+    // get data based on length
+    if (_responseBuf[LEN_BYTE] < 6){
+        // note enough data
+        return false;
+    }
+
+    uid.size = _responseBuf[LEN_BYTE] - 2;
+    memcopy(uid.uidByte, _responseBuf[DATA_START_BYTE + 1], uid.size);
+
+    return true;
+}
+
+void RDM880::sendCommand(uint8_t cmd, uint8_t* data, int8_t dataLen)
+{
+    // [STX][STATION ID][DATA LEN][CMD][DATAn][BCC][ETX]
+    uint8_t checksum;
+    _myStream->write(STX);
+    _myStream->write(_stationId);
+
+    dataLen++;  //add in the command character
+    _myStream->write(dataLen);
+    _myStream->write(cmd);
+
+    checksum = (_stationId ^ dataLen ^ cmd);
+
+    for (uint8_t i=0; i<dataLen-1; i++) {
+      _myStream->write(data[i]);
+      checksum = checksum ^ data[i];
+    } // end for
+
+    _myStream->write(checksum);
+    _myStream->write(ETX);  
+
+}
+
+uint8_t RDM880::readResponse()
+{
+    // [STX][STATION ID][DATA LEN][STATUS][DATAn][BCC][ETX]
+    uint8_t checksum;
+    uint8_t responsePtr = 0;
+
+    uint32_t time = millis();
+    while (_myStream->read() != STX){
+        if (millis() - time > 100) {
+            // time out, failed to find start of packet
+            return false;
+        }
+        delayMicroseconds(200); // small wait
+    }
+
+    _responseBuf[responsePtr++] = STX;
+    _responseBuf[responsePtr++] = _myStream.read(); // grab the stationId
+    if (_responseBuf[1] != _stationId) {
+    // stationId did not match
+        return false;
+    }
+
+    _responseBuf[responsePtr++] = _myStream.read(); // grab the dataLen
+
+    checksum = (_responseBuf[STATION_BYTE] ^ _responseBuf[LEN_BYTE]); 
+
+    for (uint8_t i; i<_responseBuf[2]; i++) {
+        if (_myStream->available() > 0) {
+            _responseBuf[responsePtr] = _myStream.read(); // grab the data
+            checksum = checksum ^ _responseBuf[responsePtr++]; // add it into our checksum calc
+        } else {
+            // hmm we should still have data to get, lets bail
+            return false;
+        }
+    }
+
+    _responseBuf[responsePtr] = _myStream.read(); // grab the crc
+   // check the CRC
+    if (checksum != _responseBuf[responsePtr++]) {
+        return false;
+    }
+    _responseBuf[responsePtr] = _myStream.read(); // this should be the ETX
+
+    if (_responseBuf[responsePtr] != ETX) {
+        // ext didnt match
+        return false;
+    }
+
+    return true;
+} 

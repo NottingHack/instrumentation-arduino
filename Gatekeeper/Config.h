@@ -84,11 +84,6 @@ unsigned long magTimeOut = 0;
 // RFID module Serial 9600N1
 #define RFID_TX 0
 #define RFID_RX 1
-// query to read a serial number
-byte query[8] = {
-  0xAA, 0x00, 0x03, 0x25, 0x26, 0x00, 0x00, 0xBB};
-unsigned char rfidReturn[255] = {};
-unsigned long lastCardNumber;
 // timeout in mills for how often the same card is read
 #define CARD_TIMEOUT 3000
 unsigned long cardTimeOut = 0;

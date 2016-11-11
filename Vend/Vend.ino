@@ -92,6 +92,11 @@
 // The ethernet shield
 EtherShield es=EtherShield();
 
+#include "RDM880.h"
+
+typedef RDM880::Uid rfid_uid;
+rfid_uid lastCardNumber = {0};
+
 
 static uint8_t mymac[6]; // Read from chip on nanode.
 static uint8_t myip[4] = {192,168,0,12};
@@ -100,7 +105,7 @@ uint8_t dstmac[6];
 
 const char iphdr[] PROGMEM ={0x45,0,0,0x82,0,0,0x40,0,0x20}; // 0x82 is the total
 char udpPayload [48];
-char rfid_serial[20];
+char rfid_serial[21];
 bool update_lcd = false;
 
 uint8_t  srcport = 11023;
@@ -1413,43 +1418,17 @@ void net_send(struct net_msg_t *msg)
  ****************************************************/
 bool pollRFID()
 {
-   if (gDebug > 1) dbg_println(F("Poll R"));
-  // quickly send query to read cards serial
-  for (int i=0; i < 8; i++)
-    rfid_reader.write(query[i]);
-  
-  // get the serial number
-  read_response(rfidReturn);
-  
-  // check status flag is clear and that we have a serial 
-  if (rfidReturn[3] == 0 && rfidReturn[2] >= 6) 
-  {
-    // grab first digit of serial
-    unsigned long cardNumber = rfidReturn[5];
-    
-    // loop for the rest
-    for (int j=1; j < (rfidReturn[2] - 2); j++)
-      cardNumber = (cardNumber << 8) | rfidReturn[j+5];
-    
+  if (gDebug > 1) dbg_println(F("Poll R"));
+  if (_rdm_reader.mfGetSerial()) {
     // check we are not reading the same card again or if we are its been a sensible time since last read it
-    if (cardNumber != lastCardNumber || (millis() - cardTimeOut) > CARD_TIMEOUT) 
-    {
-      lastCardNumber = cardNumber;
-      cardTimeOut = millis();
-      // convert cardNumber to a string array
-      ultoa(cardNumber, rfid_serial, 10);
-      return true;
-   // delay(50);
-
+    if (!eq_rfid_uid(cardNumber, lastCardNumber) || (millis() - cardTimeOut) > CARD_TIMEOUT) {
+        cpy_rfid_uid(lastCardNumber, cardNumber);
+        cardTimeOut = millis();
+        // convert cardNumber to a string and send out
+        uid_to_hex(rfid_serial, cardNumber);
+        return true;
     } // end if
-    
-    // there's a card but we can't read it
-  } else if (rfidReturn[3] == 1 && rfidReturn[4] != 131 && (millis() - cardTimeOut) > CARD_TIMEOUT) 
-  {
-    cardTimeOut = millis();
-    dbg_println(F("Unknown Card Type"));
-  //  Serial.println("Unknown Card Type");
-  } 
+  }
   return false;
 } // end bool pollRFID()
 
@@ -1481,5 +1460,45 @@ void soft_serial_flush()
       rfid_reader.read();
       
     memset(rfid_serial, 0, sizeof(rfid_serial));
+  }
+}
+
+/**************************************************** 
+ * RFID Helpers
+ *  
+ ****************************************************/
+
+void cpy_rfid_uid(rfid_uid *dst, rfid_uid *src)
+{
+  memcpy(dst, src, sizeof(rfid_uid));
+}
+
+bool eq_rfid_uid(rfid_uid u1, rfid_uid u2)
+{
+  if (memcmp(&u1, &u2, sizeof(rfid_uid)))
+    return false;
+  else
+    return true;
+}
+
+void uid_to_hex(char *uidstr, rfid_uid uid)
+{
+  switch (uid.size)
+  {
+    case 4:
+      sprintf(uidstr, "%02x%02x%02x%02x", uid.uidByte[0], uid.uidByte[1], uid.uidByte[2], uid.uidByte[3]);
+      break;
+
+    case 7:
+      sprintf(uidstr, "%02x%02x%02x%02x%02x%02x%02x", uid.uidByte[0], uid.uidByte[1], uid.uidByte[2], uid.uidByte[3], uid.uidByte[4], uid.uidByte[5], uid.uidByte[6]);
+      break;
+
+    case 10:
+      sprintf(uidstr, "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x", uid.uidByte[0], uid.uidByte[1], uid.uidByte[2], uid.uidByte[3], uid.uidByte[4], uid.uidByte[5], uid.uidByte[6], uid.uidByte[7], uid.uidByte[8], uid.uidByte[9]);
+      break;
+
+    default:
+      sprintf(uidstr, "ERR:%d", uid.size);
+      break;
   }
 }

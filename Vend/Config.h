@@ -64,10 +64,6 @@ static uint8_t vendBuf[BUFFER_SIZE+1];
 // RFID module Serial 9600N1
 #define RFID_TX 4
 #define RFID_RX 3
-// query to read a serial number
-byte query[8] = {0xAA, 0x00, 0x03, 0x25, 0x26, 0x00, 0x00, 0xBB};
-unsigned char rfidReturn[255] = {};
-unsigned long lastCardNumber;
 cState card_state;
 char tran_id[10]; // transaction id
 

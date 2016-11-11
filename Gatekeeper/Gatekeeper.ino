@@ -67,11 +67,16 @@
 #include <avr/wdt.h>
 #include "Config.h"
 #include "Backdoor.h"
+#include "RDM880.h"
+
+typedef RDM880::Uid rfid_uid;
+rfid_uid lastCardNumber = {0};
 
 void callbackMQTT(char* topic, byte* payload, unsigned int length);
 
 EthernetClient ethClient;
 PubSubClient client(server, MQTT_PORT, callbackMQTT, ethClient);
+RDM880 _rdm_reader(&Serial);
 
 void callbackMQTT(char* topic, byte* payload, unsigned int length) {
 
@@ -218,41 +223,23 @@ void loop()
  ****************************************************/
 void pollRFID()
 {
-	// quickly send query to read cards serial
-	for (int i=0; i < 8; i++){
-		Serial.write(query[i]) ;
-	} // end for
-	
-	// get the serial number
-	read_response(rfidReturn);
-	// check status flag is clear and that we have a serial 
-	if (rfidReturn[3] == 0 && rfidReturn[2] >= 6) {
-	    unsigned long time = millis();
-		// garb first digit of serial
-		unsigned long cardNumber = rfidReturn[5];
-		// loop for the rest
-		for (int j=1; j < (rfidReturn[2] - 2); j++) {
-			cardNumber = (cardNumber << 8) | rfidReturn[j+5];
-		} // end for
-		
-		// check we are not reading the same card again or if we are its been a sensible time since last read it
-		if (cardNumber != lastCardNumber || (millis() - cardTimeOut) > CARD_TIMEOUT) {
-			lastCardNumber = cardNumber;
-			cardTimeOut = millis();
-			// convert cardNumber to a string array
-			char cardBuf[20];
-			ultoa(cardNumber, cardBuf, 10);
-			client.publish(P_RFID, cardBuf);
-			digitalWrite(SPEAKER, LOW);
-			delay(50);
-			digitalWrite(SPEAKER, HIGH);
-		} // end if
-		
-		// theres a card but we cant read it
-	} else if (rfidReturn[3] == 1 && rfidReturn[4] != 131 && (millis() - cardTimeOut) > CARD_TIMEOUT) {
-		cardTimeOut = millis();
-		client.publish(P_RFID, "Unknown Card Type");
-	} // end else if 
+    if (_rdm_reader.mfGetSerial()) {
+        // check we are not reading the same card again or if we are its been a sensible time since last read it
+        if (!eq_rfid_uid(cardNumber, lastCardNumber) || (millis() - cardTimeOut) > CARD_TIMEOUT) {
+            cpy_rfid_uid(lastCardNumber, cardNumber);
+            cardTimeOut = millis();
+            // convert cardNumber to a string and send out
+            char cardBuf[21];
+            uid_to_hex(cardBuf, cardNumber);
+            client.publish(P_RFID, cardBuf);
+
+            // beep to say we read a card
+            digitalWrite(SPEAKER, LOW);
+            delay(50);
+            digitalWrite(SPEAKER, HIGH);
+        } // end if
+    }
+
 } // end void pollRFID()
 
 
@@ -638,6 +625,46 @@ void unlockDoor()
 	digitalWrite(MAG_REL, HIGH);
 } // end void unlockDoor()
 
+
+/**************************************************** 
+ * RFID Helpers
+ *  
+ ****************************************************/
+
+void cpy_rfid_uid(rfid_uid *dst, rfid_uid *src)
+{
+  memcpy(dst, src, sizeof(rfid_uid));
+}
+
+bool eq_rfid_uid(rfid_uid u1, rfid_uid u2)
+{
+  if (memcmp(&u1, &u2, sizeof(rfid_uid)))
+    return false;
+  else
+    return true;
+}
+
+void uid_to_hex(char *uidstr, rfid_uid uid)
+{
+  switch (uid.size)
+  {
+    case 4:
+      sprintf(uidstr, "%02x%02x%02x%02x", uid.uidByte[0], uid.uidByte[1], uid.uidByte[2], uid.uidByte[3]);
+      break;
+
+    case 7:
+      sprintf(uidstr, "%02x%02x%02x%02x%02x%02x%02x", uid.uidByte[0], uid.uidByte[1], uid.uidByte[2], uid.uidByte[3], uid.uidByte[4], uid.uidByte[5], uid.uidByte[6]);
+      break;
+
+    case 10:
+      sprintf(uidstr, "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x", uid.uidByte[0], uid.uidByte[1], uid.uidByte[2], uid.uidByte[3], uid.uidByte[4], uid.uidByte[5], uid.uidByte[6], uid.uidByte[7], uid.uidByte[8], uid.uidByte[9]);
+      break;
+
+    default:
+      sprintf(uidstr, "ERR:%d", uid.size);
+      break;
+  }
+}
 
 
 
