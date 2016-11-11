@@ -574,7 +574,7 @@ void lcd_loop()
 void poll_rfid()
 {
   static MFRC522::Uid card;	 
-  char rfid_serial[20];
+  char rfid_serial[21];
   boolean got_card = false;
 
   if ((_dev_state != DEV_IDLE) && (_dev_state != DEV_ACTIVE) && (_dev_state != DEV_INDUCT))
