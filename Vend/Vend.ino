@@ -88,15 +88,14 @@
 #include <Wire.h> 
 #include <avr/wdt.h>
 #include <avr/pgmspace.h>
+#include "RDM880.h"
 
 // The ethernet shield
 EtherShield es=EtherShield();
 
-#include "RDM880.h"
-
 typedef RDM880::Uid rfid_uid;
 rfid_uid lastCardNumber = {0};
-
+RDM880 _rdm_reader(&Serial);
 
 static uint8_t mymac[6]; // Read from chip on nanode.
 static uint8_t myip[4] = {192,168,0,12};

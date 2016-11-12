@@ -70,7 +70,6 @@
 #include <RDM880.h>
 
 typedef RDM880::Uid rfid_uid;
-
 rfid_uid lastCardNumber = {0};
 
 void callbackMQTT(char* topic, byte* payload, unsigned int length);
