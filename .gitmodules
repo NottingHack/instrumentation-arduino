@@ -13,3 +13,6 @@
 [submodule "Libraries/NanodeUNIO"]
 	path = Libraries/NanodeUNIO
 	url = git@github.com:sde1000/NanodeUNIO.git
+[submodule "Libraries/EtherShield"]
+	path = Libraries/EtherShield
+	url = git@github.com:daniel1111/EtherShield.git

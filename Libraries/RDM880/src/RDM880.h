@@ -12,8 +12,6 @@
 #ifndef RDM880_h
 #define RDM880_h
 
-#define 
-
 class RDM880 
 {
 private:
