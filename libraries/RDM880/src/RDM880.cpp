@@ -60,7 +60,7 @@ uint8_t RDM880::mfGetSerial(uint8_t mode, uint8_t halt)
 
     // get the serial number
     if (!readResponse()) {
-        // crab back packet
+        // carp back packet
         return false;
     }
 
@@ -142,11 +142,11 @@ uint8_t RDM880::readResponse()
     uint8_t c;
     do{ 
         c = _myStream->read();
-        if (millis() - time > 20) {
+        if (millis() - time > 200) {
             // time out, failed to find start of packet
             return false;
         }
-        delay(5); // small wait
+        delay(20); // small wait
     } while (c != STX);
 
     _responseBuf[responsePtr++] = STX;
