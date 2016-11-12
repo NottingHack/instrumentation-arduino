@@ -16,7 +16,7 @@ class RDM880
 {
 private:
     enum {
-        RDM880_MAX_RESPONSE_LEN     = 128,
+        RDM880_MAX_RESPONSE_LEN     = 60,
         MF_KEY_SIZE                 = 6
     };
 

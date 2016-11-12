@@ -100,8 +100,7 @@ void RDM880::sendCommand(uint8_t cmd, uint8_t* data, uint8_t dataLen)
     } // end for
 
     _myStream->write(checksum);
-    _myStream->write(ETX);  
-
+    _myStream->write(ETX);
 }
 
 void RDM880::sendCommand(uint8_t cmd, uint8_t* data, uint8_t dataLen, uint8_t* buffer, uint8_t bufferLen)
@@ -128,8 +127,7 @@ void RDM880::sendCommand(uint8_t cmd, uint8_t* data, uint8_t dataLen, uint8_t* b
     } // end for
 
     _myStream->write(checksum);
-    _myStream->write(ETX);  
-
+    _myStream->write(ETX);
 }
 
 uint8_t RDM880::readResponse()
@@ -137,12 +135,17 @@ uint8_t RDM880::readResponse()
     // [STX][STATION ID][DATA LEN][STATUS][DATAn][BCC][ETX]
     uint8_t checksum;
     uint8_t responsePtr = 0;
-
-    uint32_t time = millis();
+    
     uint8_t c;
+    while( _myStream->available() < 1) {
+        delay(1);
+    }
+    uint32_t time = millis();
+    
     do{ 
         c = _myStream->read();
-        if (millis() - time > 200) {
+        // Serial.println(c, HEX);
+        if ((millis() - time) > 1000) {
             // time out, failed to find start of packet
             return false;
         }
@@ -170,9 +173,9 @@ uint8_t RDM880::readResponse()
         }
     }
 
-    _responseBuf[responsePtr] = _myStream->read(); // grab the crc
-   // check the CRC
-    if (checksum != _responseBuf[responsePtr++]) {
+    _responseBuf[responsePtr++] = _myStream->read(); // grab the crc
+    // check the CRC
+    if (checksum != _responseBuf[responsePtr-1]) {
         return false;
     }
     _responseBuf[responsePtr] = _myStream->read(); // this should be the ETX

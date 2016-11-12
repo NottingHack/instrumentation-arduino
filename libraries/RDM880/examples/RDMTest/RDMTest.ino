@@ -4,10 +4,16 @@
 typedef RDM880::Uid rfid_uid;
 rfid_uid lastCardNumber = {0};
 
-#define RFID_PWR 4
-#define RFID_GND 5
-#define RFID_TX 6
-#define RFID_RX 7
+// #define RFID_PWR 4
+// #define RFID_GND 5
+// #define RFID_TX 6
+// #define RFID_RX 7
+void cpy_rfid_uid(rfid_uid *dst, rfid_uid *src);
+bool eq_rfid_uid(rfid_uid u1, rfid_uid u2);
+void uid_to_hex(char *uidstr, rfid_uid uid);
+
+#define RFID_TX 4
+#define RFID_RX 3
 
 SoftwareSerial rfid_reader(RFID_RX,RFID_TX);
 
@@ -16,10 +22,10 @@ uint32_t cardTimeOut = 0;
 char rfid_serial[21];
 
 void setup() {
-  pinMode(RFID_GND, OUTPUT);
-  pinMode(RFID_PWR, OUTPUT);
-  digitalWrite(RFID_GND, LOW);
-  digitalWrite(RFID_PWR, HIGH);
+  // pinMode(RFID_GND, OUTPUT);
+  // pinMode(RFID_PWR, OUTPUT);
+  // digitalWrite(RFID_GND, LOW);
+  // digitalWrite(RFID_PWR, HIGH);
     Serial.begin(9600);
     rfid_reader.begin(9600);
     Serial.print("hello");
@@ -28,15 +34,16 @@ void setup() {
 
 void loop() {
   pollRFID();
-  Serial.print("poll");
-  delay(10);
+  // Serial.print("poll ");
+  delay(500);
 }
 
 bool pollRFID()
 {
-
-  if (_rdm_reader.mfGetSerial()) {
-    Serial.print("got Serial");
+  uint8_t ret = _rdm_reader.mfGetSerial();
+  // Serial.println(ret, HEX);
+  if (ret == 0) {
+    Serial.print("got Serial ");
     // check we are not reading the same card again or if we are its been a sensible time since last read it
     if (!eq_rfid_uid(_rdm_reader.uid, lastCardNumber) || (millis() - cardTimeOut) > 100) {
         cpy_rfid_uid(&lastCardNumber, &_rdm_reader.uid);
