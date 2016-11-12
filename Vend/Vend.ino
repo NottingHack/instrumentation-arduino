@@ -973,7 +973,6 @@ void cancel_pressed()
     memset(tran_id, 0, sizeof(tran_id));       
     card_state = NO_CARD;
     rfid_reader.flush(); // clear any buffered card details
-    memset(rfidReturn, 0, sizeof(rfidReturn));
   } else
   {
     dbg_println(F("Nothing to cancel"));
@@ -1421,11 +1420,11 @@ bool pollRFID()
   if (gDebug > 1) dbg_println(F("Poll R"));
   if (_rdm_reader.mfGetSerial()) {
     // check we are not reading the same card again or if we are its been a sensible time since last read it
-    if (!eq_rfid_uid(cardNumber, lastCardNumber) || (millis() - cardTimeOut) > CARD_TIMEOUT) {
-        cpy_rfid_uid(lastCardNumber, cardNumber);
+    if (!eq_rfid_uid(_rdm_reader.uid, lastCardNumber) || (millis() - cardTimeOut) > CARD_TIMEOUT) {
+        cpy_rfid_uid(&lastCardNumber, &_rdm_reader.uid);
         cardTimeOut = millis();
         // convert cardNumber to a string and send out
-        uid_to_hex(rfid_serial, cardNumber);
+        uid_to_hex(rfid_serial, _rdm_reader.uid);
         return true;
     } // end if
   }

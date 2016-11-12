@@ -67,9 +67,10 @@
 #include <avr/wdt.h>
 #include "Config.h"
 #include "Backdoor.h"
-#include "RDM880.h"
+#include <RDM880.h>
 
 typedef RDM880::Uid rfid_uid;
+
 rfid_uid lastCardNumber = {0};
 
 void callbackMQTT(char* topic, byte* payload, unsigned int length);
@@ -225,12 +226,12 @@ void pollRFID()
 {
     if (_rdm_reader.mfGetSerial()) {
         // check we are not reading the same card again or if we are its been a sensible time since last read it
-        if (!eq_rfid_uid(cardNumber, lastCardNumber) || (millis() - cardTimeOut) > CARD_TIMEOUT) {
-            cpy_rfid_uid(lastCardNumber, cardNumber);
+        if (!eq_rfid_uid(_rdm_reader.uid, lastCardNumber) || (millis() - cardTimeOut) > CARD_TIMEOUT) {
+            cpy_rfid_uid(&lastCardNumber, &_rdm_reader.uid);
             cardTimeOut = millis();
             // convert cardNumber to a string and send out
             char cardBuf[21];
-            uid_to_hex(cardBuf, cardNumber);
+            uid_to_hex(cardBuf, _rdm_reader.uid);
             client.publish(P_RFID, cardBuf);
 
             // beep to say we read a card

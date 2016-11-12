@@ -24,7 +24,8 @@ private:
     uint8_t _stationId;
 
     uint8_t _responseBuf[RDM880_MAX_RESPONSE_LEN];
-    void sendCommand(uint8_t cmd, uint8_t* data, int8_t dataLen);
+    void sendCommand(uint8_t cmd, uint8_t* data, uint8_t dataLen);
+    void sendCommand(uint8_t cmd, uint8_t* data, uint8_t dataLen, uint8_t* buffer, uint8_t bufferLen);
     uint8_t readResponse(); // returns false on timeout invalid packet
 
 public:
@@ -53,11 +54,11 @@ public:
         ETX                         = 0xBB,
         STATION_BYTE                = 1,
         LEN_BYTE                    = 2,
-        SATUS_BYTE                  = 3,
+        STATUS_BYTE                  = 3,
         DATA_START_BYTE             = 4
     };
 
-    enum BAUD {
+    enum RMD_BAUD {
         BAUD_9600                   = 0x00,
         BUAD_19200                  = 0x01,
         BAUD_38400                  = 0x02,
@@ -76,7 +77,7 @@ public:
     enum ISO14443A_MULTI_CARD_FLAG {
         ISO14443A_MULTI_FLAG_ONE              = 0x26,
         ISO14443A_MULTI_FLAG_MANY             = 0x52
-    }
+    };
 
     // enum ISO14443B {
     //     ISO14443B_CMD_Request       = 0x09,
@@ -105,12 +106,12 @@ public:
     enum REQUEST_MODE {
         REQ_MODE_IDLE               = 0x26,
         REQ_MODE_ALL                = 0x52
-    }
+    };
 
     enum MI_MULTI_CARD_FLAG {
         MI_MULTI_FLAG_ONE              = 0x00,
         MI_MULTI_FLAG_MANY             = 0x01
-    }
+    };
 
     enum SYSTEM {
         SYSTEM_CMD_SetAddress       = 0x80, // takes 1 byte
@@ -157,7 +158,7 @@ public:
         STATUS_CMD_OK                           = 0x00,  // Command OK
         STATUS_CMD_FAILED                       = 0x01,  // Command failed
         STATUS_SET_OK                           = 0x80,  // Set OK
-        STATUS_SET_OK                           = 0x81,  // Set failed
+        STATUS_SET_FAILED                       = 0x81,  // Set failed
         STATUS_TIMEOUT                          = 0x82,  // Reader reply timeout
         STATUS_NO_CARD                          = 0x83,  // Card does not exist
         STATUS_DATA_ERROR                       = 0x84,  // The data response from the card is error
@@ -178,8 +179,8 @@ public:
 
     Uid uid;
 
-    RDM880(Stream &serial); 
-    RDM880(Stream &serial, uint8_t stationId); 
+    RDM880(Stream *serial); 
+    RDM880(Stream *serial, uint8_t stationId); 
 
     // isobRequest();
     // isobAnticollision();
@@ -196,6 +197,6 @@ public:
     uint8_t mfGetSerial(uint8_t mode = REQ_MODE_IDLE, uint8_t halt = 0);
 
 
-}
+};
 
 #endif
