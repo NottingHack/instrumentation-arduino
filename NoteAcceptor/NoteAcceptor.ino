@@ -59,6 +59,8 @@
 
 #define LCD_WIDTH 20
 
+typedef MFRC522::Uid rfid_uid;
+
 void callbackMQTT(char* topic, byte* payload, unsigned int length);
 uint8_t set_state(state_t new_state);
 void message_handler(uint8_t cmd, uint8_t val);
@@ -71,6 +73,9 @@ void timeout_check();
 void poll_rfid();
 void dbg_println(const __FlashStringHelper *n);
 void dbg_println(const char *msg);
+void cpy_rfid_uid(rfid_uid *dst, rfid_uid *src);
+bool eq_rfid_uid(rfid_uid u1, rfid_uid r2);
+void uid_to_hex(char *uidstr, rfid_uid uid);
 
 EthernetClient ethClient;
 PubSubClient client(server, MQTT_PORT, callbackMQTT, ethClient);
@@ -79,8 +84,8 @@ MFRC522 rfid_reader(PIN_RFID_SS, PIN_RFID_RST);
 
 
 char pmsg[DMSG];
-unsigned long card_number;
-char rfid_serial[20];
+rfid_uid card_number;
+char rfid_serial[21];
 char tran_id[10]; // transaction id
 char mqtt_rx_buf[45];
 unsigned long state_entered;
@@ -435,7 +440,7 @@ uint8_t set_state(state_t new_state)
           nv4_reject_escrow();
         }
         nv4_disable_all();
-        card_number = 0;
+        memset(&card_number, 0, sizeof(card_number));
         memset(rfid_serial, 0, sizeof(rfid_serial));
         memset(tran_id, 0, sizeof(tran_id));
       }
@@ -453,7 +458,7 @@ uint8_t set_state(state_t new_state)
       }
 
       nv4_disable_all();
-      card_number = 0;
+      memset(&card_number, 0, sizeof(card_number));
       memset(rfid_serial, 0, sizeof(rfid_serial));
       memset(tran_id, 0, sizeof(tran_id));
       lcd.clear();
@@ -499,7 +504,7 @@ uint8_t set_state(state_t new_state)
       lcd.setCursor(0,1);
       lcd.print(F("Note jam detected"));
       nv4_disable_all();
-      card_number = 0;
+      memset(&card_number, 0, sizeof(card_number));
       memset(rfid_serial, 0, sizeof(rfid_serial));
       memset(tran_id, 0, sizeof(tran_id));
       state = STATE_JAMMED;
@@ -622,8 +627,6 @@ void message_handler(uint8_t cmd, uint8_t val)
 
 void poll_rfid()
 {
-  byte *pCard_number = (byte*)&card_number;
-
   if (state != STATE_READY)
     return;
 
@@ -633,11 +636,8 @@ void poll_rfid()
   if (!rfid_reader.PICC_ReadCardSerial())
     return;
 
-  // Convert 4x bytes received to long (4 bytes)
-  for (int i = rfid_reader.uid.size-1; i >= 0; i--) 
-    *(pCard_number++) = rfid_reader.uid.uidByte[i];
-
-  ultoa(card_number, rfid_serial, 10);
+  cpy_rfid_uid(&card_number, &rfid_reader.uid);
+  uid_to_hex(rfid_serial, card_number);
 
   sprintf(pmsg, "AUTH:%s", rfid_serial);
   client.publish(P_NOTE_TX, pmsg);
@@ -695,6 +695,41 @@ void dbg_println(const __FlashStringHelper *n)
 #ifdef DEBUG_SERIAL
   Serial.println(pmsg+sizeof("INFO"));
 #endif
+}
+
+void cpy_rfid_uid(rfid_uid *dst, rfid_uid *src)
+{
+  memcpy(dst, src, sizeof(rfid_uid));
+}
+
+bool eq_rfid_uid(rfid_uid u1, rfid_uid u2)
+{
+  if (memcmp(&u1, &u2, sizeof(rfid_uid)))
+    return false;
+  else
+    return true;
+}
+
+void uid_to_hex(char *uidstr, rfid_uid uid)
+{
+  switch (uid.size)
+  {
+    case 4:
+      sprintf(uidstr, "%02x%02x%02x%02x", uid.uidByte[0], uid.uidByte[1], uid.uidByte[2], uid.uidByte[3]);
+      break;
+
+    case 7:
+      sprintf(uidstr, "%02x%02x%02x%02x%02x%02x%02x", uid.uidByte[0], uid.uidByte[1], uid.uidByte[2], uid.uidByte[3], uid.uidByte[4], uid.uidByte[5], uid.uidByte[6]);
+      break;
+
+    case 10:
+      sprintf(uidstr, "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x", uid.uidByte[0], uid.uidByte[1], uid.uidByte[2], uid.uidByte[3], uid.uidByte[4], uid.uidByte[5], uid.uidByte[6], uid.uidByte[7], uid.uidByte[8], uid.uidByte[9]);
+      break;
+
+    default:
+      sprintf(uidstr, "ERR:%d", uid.size);
+      break;
+  }
 }
 
 void dbg_println(const char *msg)
