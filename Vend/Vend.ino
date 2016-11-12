@@ -88,7 +88,7 @@
 #include <Wire.h> 
 #include <avr/wdt.h>
 #include <avr/pgmspace.h>
-#include "RDM880.h"
+#include <RDM880.h>
 
 // The ethernet shield
 EtherShield es=EtherShield();
@@ -108,6 +108,12 @@ char rfid_serial[21];
 bool update_lcd = false;
 
 uint8_t  srcport = 11023;
+
+uint8_t eq_rfid_uid(rfid_uid u1, rfid_uid u2);
+void uid_to_hex(char *uidstr, rfid_uid uid);
+void cpy_rfid_uid(rfid_uid *dst, rfid_uid *src);
+
+
 
 // Packet buffer, must be big enough for packet and payload
 #define BUFFER_SIZE 150
@@ -1471,7 +1477,7 @@ void cpy_rfid_uid(rfid_uid *dst, rfid_uid *src)
   memcpy(dst, src, sizeof(rfid_uid));
 }
 
-bool eq_rfid_uid(rfid_uid u1, rfid_uid u2)
+uint8_t eq_rfid_uid(rfid_uid u1, rfid_uid u2)
 {
   if (memcmp(&u1, &u2, sizeof(rfid_uid)))
     return false;
