@@ -74,8 +74,9 @@ uint8_t RDM880::mfGetSerial(uint8_t mode, uint8_t halt)
         return false;
     }
 
-    uid.size = _responseBuf[LEN_BYTE] - 2;
-    memcpy(uid.uidByte, _responseBuf[DATA_START_BYTE + 1], uid.size);
+    uint8_t offset = (_responseBuf[LEN_BYTE] == 6) ? 2 : 1;
+    uid.size = _responseBuf[LEN_BYTE] - offset;
+    memcpy(uid.uidByte, &_responseBuf[DATA_START_BYTE + offset - 1], uid.size);
 
     return true;
 }
@@ -138,13 +139,15 @@ uint8_t RDM880::readResponse()
     uint8_t responsePtr = 0;
 
     uint32_t time = millis();
-    while (_myStream->read() != STX){
-        if (millis() - time > 100) {
+    uint8_t c;
+    do{ 
+        c = _myStream->read();
+        if (millis() - time > 20) {
             // time out, failed to find start of packet
             return false;
         }
-        delayMicroseconds(200); // small wait
-    }
+        delay(5); // small wait
+    } while (c != STX);
 
     _responseBuf[responsePtr++] = STX;
     _responseBuf[responsePtr++] = _myStream->read(); // grab the stationId

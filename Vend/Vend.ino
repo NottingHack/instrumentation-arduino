@@ -95,7 +95,8 @@ EtherShield es=EtherShield();
 
 typedef RDM880::Uid rfid_uid;
 rfid_uid lastCardNumber = {0};
-RDM880 _rdm_reader(&Serial);
+SoftwareSerial rfid_reader(RFID_RX,RFID_TX);
+RDM880 _rdm_reader(&rfid_reader);
 
 static uint8_t mymac[6]; // Read from chip on nanode.
 static uint8_t myip[4] = {192,168,0,12};
@@ -133,7 +134,7 @@ struct net_msg_t
 
 struct MDB_Byte recvData[10];
 struct MDB_Byte sendData[10];
-SoftwareSerial rfid_reader(RFID_RX,RFID_TX);
+
 byte sendLength;
 int rst;
 int debug;
