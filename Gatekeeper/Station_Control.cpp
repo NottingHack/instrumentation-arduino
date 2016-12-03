@@ -31,6 +31,9 @@
  
  */
 
+#include <Arduino.h>
+#include <Wire.h>
+#include "Station_Control.h"
 
 void sendStr(char* b)
 {

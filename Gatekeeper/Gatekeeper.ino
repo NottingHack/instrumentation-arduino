@@ -67,12 +67,29 @@
 #include <avr/wdt.h>
 #include "Config.h"
 #include "Backdoor.h"
+#include "Station_Control.h"
 #include <RDM880.h>
 
 typedef RDM880::Uid rfid_uid;
 rfid_uid lastCardNumber = {0};
 
 void callbackMQTT(char* topic, byte* payload, unsigned int length);
+void pollRFID();
+void pollMagCon();
+void pollKeypad();
+void pollLastMan();
+void pollDoorBell();
+void checkMQTT();
+void doorButton();
+void updateLCD(char* msg);
+boolean output_line(int *lineno, char *str, int typ);
+void print_wrapped(char *msg);
+void unlock();
+void lockDoor();
+void unlockDoor();
+void cpy_rfid_uid(rfid_uid *dst, rfid_uid *src);
+bool eq_rfid_uid(rfid_uid u1, rfid_uid u2);
+void uid_to_hex(char *uidstr, rfid_uid uid);
 
 EthernetClient ethClient;
 PubSubClient client(server, MQTT_PORT, callbackMQTT, ethClient);

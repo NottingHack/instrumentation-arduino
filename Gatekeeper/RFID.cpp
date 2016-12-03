@@ -58,6 +58,9 @@ void send_command(int CMD, char* DATA, byte dataLen)
 } // end void send_command(int CMD, char* DATA, byte dataLen)
 */
 
+#include <Arduino.h>
+#include <Wire.h>
+
 void read_response(unsigned char* dataResp)
 {
   byte incomingByte;
