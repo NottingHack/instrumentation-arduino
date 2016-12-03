@@ -21,6 +21,7 @@ RDM880 _rdm_reader(&rfid_reader);
 uint32_t cardTimeOut = 0;
 char rfid_serial[21];
 
+uint8_t count = 0;
 void setup() {
   // pinMode(RFID_GND, OUTPUT);
   // pinMode(RFID_PWR, OUTPUT);
@@ -34,15 +35,15 @@ void setup() {
 
 void loop() {
   pollRFID();
-  // Serial.print("poll ");
-  delay(500);
+  Serial.print("poll ");
+  delay(1000);
 }
 
 bool pollRFID()
 {
   uint8_t ret = _rdm_reader.mfGetSerial();
-  // Serial.println(ret, HEX);
-  if (ret == 0) {
+  if (ret == 9) {
+    count = 0;
     Serial.print("got Serial ");
     // check we are not reading the same card again or if we are its been a sensible time since last read it
     if (!eq_rfid_uid(_rdm_reader.uid, lastCardNumber) || (millis() - cardTimeOut) > 100) {
@@ -54,6 +55,14 @@ bool pollRFID()
         return true;
     } // end if
   }
+  Serial.print(ret);
+  Serial.print(" ");
+  Serial.print(count);
+  Serial.print(" ");
+  Serial.print(rfid_reader.available());
+  Serial.print(" ");
+  Serial.println(rfid_reader.overflow());
+  count++;
   return false;
 } // end bool pollRFID()
 

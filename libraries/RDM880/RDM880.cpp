@@ -59,26 +59,27 @@ uint8_t RDM880::mfGetSerial(uint8_t mode, uint8_t halt)
     sendCommand(MI_CMD_GetSNR, data, 2);
 
     // get the serial number
-    if (!readResponse()) {
+    uint8_t ret = readResponse();
+    if (ret != 6) {
         // carp back packet
-        return false;
+        return ret;
     }
 
     // check the status flag
     if (_responseBuf[STATUS_BYTE] != STATUS_CMD_OK) {
-        return false;
+        return 7;
     }
     // get data based on length
     if (_responseBuf[LEN_BYTE] < 6){
         // note enough data
-        return false;
+        return 8;
     }
 
     uint8_t offset = (_responseBuf[LEN_BYTE] == 6) ? 2 : 1;
     uid.size = _responseBuf[LEN_BYTE] - offset;
     memcpy(uid.uidByte, &_responseBuf[DATA_START_BYTE + offset - 1], uid.size);
 
-    return true;
+    return 9;
 }
 
 void RDM880::sendCommand(uint8_t cmd, uint8_t* data, uint8_t dataLen)
@@ -106,6 +107,7 @@ void RDM880::sendCommand(uint8_t cmd, uint8_t* data, uint8_t dataLen)
 void RDM880::sendCommand(uint8_t cmd, uint8_t* data, uint8_t dataLen, uint8_t* buffer, uint8_t bufferLen)
 {
     // [STX][STATION ID][DATA LEN][CMD][DATAn][BCC][ETX]
+    flushOutput();
     uint8_t checksum;
     _myStream->write(STX);
     _myStream->write(_stationId);
@@ -128,62 +130,89 @@ void RDM880::sendCommand(uint8_t cmd, uint8_t* data, uint8_t dataLen, uint8_t* b
 
     _myStream->write(checksum);
     _myStream->write(ETX);
+
 }
 
 uint8_t RDM880::readResponse()
 {
-    // [STX][STATION ID][DATA LEN][STATUS][DATAn][BCC][ETX]
-    uint8_t checksum;
-    uint8_t responsePtr = 0;
-    
-    uint8_t c;
-    while( _myStream->available() < 1) {
-        delay(1);
-    }
-    uint32_t time = millis();
-    
-    do{ 
-        c = _myStream->read();
-        // Serial.println(c, HEX);
-        if ((millis() - time) > 1000) {
-            // time out, failed to find start of packet
-            return false;
-        }
-        delay(20); // small wait
-    } while (c != STX);
-
-    _responseBuf[responsePtr++] = STX;
-    _responseBuf[responsePtr++] = _myStream->read(); // grab the stationId
-    if (_responseBuf[1] != _stationId) {
-    // stationId did not match
-        return false;
-    }
-
-    _responseBuf[responsePtr++] = _myStream->read(); // grab the dataLen
-
-    checksum = (_responseBuf[STATION_BYTE] ^ _responseBuf[LEN_BYTE]); 
-
-    for (uint8_t i; i<_responseBuf[2]; i++) {
+    byte incomingByte;
+    byte responsePtr =0;
+    unsigned long time = millis();
+    while (millis() - time < 20) {
+        // read the incoming byte:
         if (_myStream->available() > 0) {
-            _responseBuf[responsePtr] = _myStream->read(); // grab the data
-            checksum = checksum ^ _responseBuf[responsePtr++]; // add it into our checksum calc
-        } else {
-            // hmm we should still have data to get, lets bail
-            return false;
+            incomingByte = (char)_myStream->read();
+            _responseBuf[responsePtr++]=incomingByte;
+            time = millis();
         }
-    }
+    } // end while
+    _responseBuf[responsePtr]=0;
+    return 6;
+    // // [STX][STATION ID][DATA LEN][STATUS][DATAn][BCC][ETX]
+    // uint8_t checksum;
+    // uint8_t responsePtr = 0;
+    
+    // uint8_t c;
+    // while( _myStream->available() < 1) {
+    //     delay(1);
+    // }
+    // uint32_t time = millis();
+    
+    // do{ 
+    //     c = _myStream->read();
+    //     // Serial.println(c, HEX);
+    //     if ((millis() - time) > 1000) {
+    //         // time out, failed to find start of packet
+    //         flushOutput();
+    //         return 1;
+    //     }
+    //     delay(20); // small wait
+    // } while (c != STX);
 
-    _responseBuf[responsePtr++] = _myStream->read(); // grab the crc
-    // check the CRC
-    if (checksum != _responseBuf[responsePtr-1]) {
-        return false;
-    }
-    _responseBuf[responsePtr] = _myStream->read(); // this should be the ETX
+    // _responseBuf[responsePtr++] = STX;
+    // _responseBuf[responsePtr++] = _myStream->read(); // grab the stationId
+    // if (_responseBuf[1] != _stationId) {
+    //     // stationId did not match
+    //     flushOutput();
+    //     return 2;
+    // }
 
-    if (_responseBuf[responsePtr] != ETX) {
-        // ext didnt match
-        return false;
-    }
+    // _responseBuf[responsePtr++] = _myStream->read(); // grab the dataLen
 
-    return true;
+    // checksum = (_responseBuf[STATION_BYTE] ^ _responseBuf[LEN_BYTE]); 
+
+    // for (uint8_t i; i<_responseBuf[2]; i++) {
+    //     if (_myStream->available() > 0) {
+    //         _responseBuf[responsePtr] = _myStream->read(); // grab the data
+    //         checksum = checksum ^ _responseBuf[responsePtr++]; // add it into our checksum calc
+    //     } else {
+    //         // hmm we should still have data to get, lets bail
+    //         flushOutput();
+    //         return 3;
+    //     }
+    // }
+
+    // _responseBuf[responsePtr++] = _myStream->read(); // grab the crc
+    // // check the CRC
+    // if (checksum != _responseBuf[responsePtr-1]) {
+    //     flushOutput();
+    //     return 4;
+    // }
+    // _responseBuf[responsePtr] = _myStream->read(); // this should be the ETX
+
+    // if (_responseBuf[responsePtr] != ETX) {
+    //     // ext didnt match
+    //     flushOutput();
+    //     return 5;
+    // }
+    // flushOutput();
+    // return 6;
 } 
+
+void RDM880::flushOutput()
+{
+    uint8_t devnull;
+    while( _myStream->available() != 0) {
+        devnull = _myStream->read();
+    }
+}

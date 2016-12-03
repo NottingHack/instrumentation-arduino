@@ -27,6 +27,7 @@ private:
     void sendCommand(uint8_t cmd, uint8_t* data, uint8_t dataLen);
     void sendCommand(uint8_t cmd, uint8_t* data, uint8_t dataLen, uint8_t* buffer, uint8_t bufferLen);
     uint8_t readResponse(); // returns false on timeout invalid packet
+    void flushOutput();
 
 public:
     // A struct used for passing the UID.

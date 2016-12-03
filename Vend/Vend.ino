@@ -1335,7 +1335,18 @@ void dbg_println(char* str)
   dbg_print(str);
 }
 
-
+void dbg_print(uint8_t c)
+{
+  uint8_t str[2] = {0};
+  str[0] = 0x30 | c;
+  if (gDebug > 0)
+  {
+    struct net_msg_t msg;
+    memcpy(msg.msgtype,"INFO", 4);
+    strncpy((char*)msg.payload, (char*)str, sizeof(msg.payload));
+    net_send(&msg);
+  }
+}
 
 void dbg_print(char* str)
 {
@@ -1424,7 +1435,8 @@ void net_send(struct net_msg_t *msg)
 bool pollRFID()
 {
   if (gDebug > 1) dbg_println(F("Poll R"));
-  if (_rdm_reader.mfGetSerial()) {
+  uint8_t ret = _rdm_reader.mfGetSerial();
+  if (ret == 9) {
     // check we are not reading the same card again or if we are its been a sensible time since last read it
     if (!eq_rfid_uid(_rdm_reader.uid, lastCardNumber) || (millis() - cardTimeOut) > CARD_TIMEOUT) {
         cpy_rfid_uid(&lastCardNumber, &_rdm_reader.uid);
@@ -1434,6 +1446,9 @@ bool pollRFID()
         return true;
     } // end if
   }
+  // uint8_t *val[2];
+  // Iota(ret, val);
+  // dbg_print(ret);
   return false;
 } // end bool pollRFID()
 
