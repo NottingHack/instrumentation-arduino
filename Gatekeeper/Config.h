@@ -55,7 +55,7 @@ byte ip[]     = { 192, 168, 0, 10 };
 // timeout in mills for how often the doorbell can be rang
 #define DOOR_BUTTON_TIMEOUT 5000
 unsigned long doorTimeOut = 0;
-boolean doorButtonState = 0;
+uint8_t doorButtonState = 0;
 
 // Status Indicator's 
 // BLUE = UNLOCKED
