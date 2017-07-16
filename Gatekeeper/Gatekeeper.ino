@@ -75,7 +75,6 @@ rfid_uid lastCardNumber = {0};
 
 void callbackMQTT(char* topic, byte* payload, unsigned int length);
 void pollRFID();
-void pollMagCon();
 void pollKeypad();
 void pollLastMan();
 void pollDoorBell();
@@ -90,6 +89,8 @@ void unlockDoor();
 void cpy_rfid_uid(rfid_uid *dst, rfid_uid *src);
 bool eq_rfid_uid(rfid_uid u1, rfid_uid u2);
 void uid_to_hex(char *uidstr, rfid_uid uid);
+void updateDoorState(boolean always_send_update);
+void sendDoorState(door_state_t door_state);
 
 EthernetClient ethClient;
 PubSubClient client(server, MQTT_PORT, callbackMQTT, ethClient);
@@ -206,10 +207,6 @@ void loop()
 	// Poll RFID
 	pollRFID();
 	
-	// Poll Magnetic Contact
-	// has the door been opened likely some one left
-	pollMagCon();
-	
 	// Poll MQTT
 	// should cause callback if theres a new message
 	client.loop();
@@ -229,6 +226,9 @@ void loop()
 	// Poll Door Bell
 	// has the button been press
 	pollDoorBell();
+  
+	// If the door has changed state, send an update
+	updateDoorState(false);
 
 	
 } // end void loop()
@@ -258,39 +258,6 @@ void pollRFID()
     }
 
 } // end void pollRFID()
-
-
-/**************************************************** 
- * Poll Magnetic Contact
- *  
- ****************************************************/
-void pollMagCon()
-{
-	boolean state = digitalRead(MAG_CON);
-	
-	// check see if the magnetic contact has changed
-	// timeout should kill bounce
-	if(magConState != state && (millis() - magTimeOut) > MAG_CON_TIMEOUT) {
-		// yes it has so publish to MQTT
-		switch (state) {
-			case CLOSED:
-			client.publish(P_DOOR_STATE, "Door Closed");
-			break;
-			case OPEN:
-			client.publish(P_DOOR_STATE, "Door Opened");
-			break;
-			default:
-			break;
-		} // end switch
-		
-		// Update State
-		magConState = state;
-		magTimeOut = millis();
-		
-	} // end if
-	
-	
-} // end void pollMagCon()
 
 
 /**************************************************** 
@@ -434,11 +401,14 @@ void pollDoorBell()
 void checkMQTT()
 {
     if(!client.connected()){
-    if (client.connect(CLIENT_ID)) {
+    if (client.connect(CLIENT_ID, P_DOOR_STATE, 0, 1, "UNKNOWN")) { // on disconnection, set door state to unknown
       client.publish(P_STATUS, RESTART);
       client.subscribe(S_UNLOCK);
       client.subscribe(S_STATUS);
       client.subscribe(S_DOOR_BELL);
+
+      // Send door state
+      updateDoorState(true);
     } // end if
   } // end if
 } // end checkMQTT()
@@ -582,41 +552,30 @@ void print_wrapped(char *msg)
 
 /**************************************************** 
  * Main Door unlock routine
- *  
+ *
  ****************************************************/
 void unlock()
 {
-	boolean o = 0;
-	
 	// store current time
 	unsigned long timeOut = millis();
-	
+
 	// unlock the door
 	unlockDoor();
-	
+
+	// Send new door state
+	updateDoorState(true);
+
 	// keep it open until we timeout or someone open the door
 	do {
 		// check to see if someone opened the door
 		if(digitalRead(MAG_CON) == OPEN) {
-			o = 1;
 			break;
 		} // end if
-		
+
 	}while((millis() - timeOut) < MAG_REL_TIMEOUT);
-	
-	// lock the door 
+
+	// lock the door
 	lockDoor();
-	
-	// Publish to MQTT if we timed out or the door was opened
-	if(o == 1) {
-		// the door was opened
-		client.publish(P_DOOR_STATE, "Door Opened by:");
-		magConState = OPEN;
-	} else {
-		// the door timed out
-		client.publish(P_DOOR_STATE, "Door Time Out");
-		
-	} // end else
 } // end void unlock()
 
 
@@ -629,6 +588,7 @@ void lockDoor()
 	digitalWrite(BLUE_LED, LOW);
 	digitalWrite(RED_LED, HIGH);
 	digitalWrite(MAG_REL, LOW);
+	doorLocked = true;
 } // end void lockDoor()
 
 /**************************************************** 
@@ -640,6 +600,7 @@ void unlockDoor()
 	digitalWrite(RED_LED, LOW);
 	digitalWrite(BLUE_LED, HIGH);
 	digitalWrite(MAG_REL, HIGH);
+	doorLocked = false;
 } // end void unlockDoor()
 
 
@@ -684,4 +645,85 @@ void uid_to_hex(char *uidstr, rfid_uid uid)
 }
 
 
+// Called regulary from the main loop. Work out if the door state has changed, and if it has, report it.
+void updateDoorState(boolean always_send_update)
+{
+  static door_state_t current_door_state = DS_UNKNOWN;
+  static unsigned long current_door_state_change_time=0;
 
+  door_state_t new_door_state = DS_FAULT;
+
+  uint8_t door_contact_state = digitalRead(MAG_CON);
+  static uint8_t previous_door_contact_state = 0;
+
+  if (previous_door_contact_state != door_contact_state)
+  {
+    previous_door_contact_state = door_contact_state;
+    magTimeOut = millis();
+  }
+
+
+  // Wait for things to settle: don't normally send an update if relevant states have changed recently (e.g. door's only just been opened).
+  if
+  (
+    (millis()-magTimeOut < MAG_CON_TIMEOUT)        || // Door contact has just changed state
+  //(millis()-_door_unlocked_time < 100)           || // Door has just been unlocked
+    (millis()-current_door_state_change_time < 100)   // Door state has just changed
+  )
+  {
+    if (always_send_update)
+      sendDoorState(new_door_state);
+    return;
+  }
+
+  if (door_contact_state == OPEN)
+    new_door_state = DS_OPEN;   // Door is open
+  else if ((door_contact_state == CLOSED) && !doorLocked)
+    new_door_state = DS_CLOSED; // Door is closed and not locked
+  else if ((door_contact_state == CLOSED) && doorLocked)
+    new_door_state = DS_LOCKED; // Door is closed and (should be) locked
+  else
+    new_door_state = DS_FAULT;  // Shouldn't be possible to get here...
+
+  if (always_send_update)
+  {
+    current_door_state = new_door_state;
+    sendDoorState(new_door_state);
+  }
+  else
+  {
+    // If the door state has changed, send an update
+    if (current_door_state != new_door_state)
+    {
+      sendDoorState(new_door_state);
+      current_door_state_change_time = millis();
+      current_door_state = new_door_state;
+    }
+  }
+}
+
+void sendDoorState(door_state_t door_state)
+{
+  char state[8];
+
+  switch (door_state)
+  {
+    case DS_OPEN:
+      strcpy(state, "OPEN");
+      break;
+
+    case DS_CLOSED:
+      strcpy(state, "CLOSED");
+      break;
+
+    case DS_LOCKED:
+      strcpy(state, "LOCKED");
+      break;
+
+    default:
+      strcpy(state, "FAULT");
+      break;
+  }
+
+  client.publish(P_DOOR_STATE, (uint8_t*)state, strlen(state), true);
+}

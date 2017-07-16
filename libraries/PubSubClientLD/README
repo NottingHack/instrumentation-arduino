@@ -1,0 +1,10 @@
+
+
+This is a tweaked version of the PubSubClient library used for the LaserDisplay, with two changes:
+* MQTT_MAX_PACKET_SIZE increased from 128 to 512 to accomate the larger JSON formatted messages
+* MQTT_KEEPALIVE split into MQTT_KEEPALIVE_SEND and MQTT_KEEPALIVE_TIMEOUT - the first being the
+  time sent to broker on connect as the Keep Alive time interval, the second being how often we
+  will send pings (in the absense of other messages).
+  This is to work around the problem of millis() not incrementing inside interrupt handlers, and
+  the broker disconnecting us when we don't send anything for longer than the keepealive period.
+

@@ -56,6 +56,7 @@ byte ip[]     = { 192, 168, 0, 10 };
 #define DOOR_BUTTON_TIMEOUT 5000
 unsigned long doorTimeOut = 0;
 uint8_t doorButtonState = 0;
+bool doorLocked = false;
 
 // Status Indicator's 
 // BLUE = UNLOCKED
@@ -151,7 +152,14 @@ byte server[] = { 192, 168, 0, 1 };
 #define DOOR_REAR "3"
 
 
-
+enum door_state_t
+{
+   DS_UNKNOWN,
+   DS_OPEN,
+   DS_CLOSED,
+   DS_LOCKED,
+   DS_FAULT
+};
 
 
 
