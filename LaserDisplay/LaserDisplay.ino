@@ -1,3 +1,5 @@
+
+
 /*   
  * Copyright (c) 2016, Daniel Swann <hs@dswann.co.uk>
  * All rights reserved.
@@ -28,18 +30,18 @@
 
 
 
- * Target controller = Arduino Dued
+ * Target controller = Arduino Due
  * Development platform = Arduino IDE 1.6.5$
 
  */
 
 
 #include <climits> 
-
+#include <ThermistorTemperature.h>
 #include <DueTimer.h>
 #include <SPI.h>
 #include <Ethernet.h>
-#include <PubSubClient.h>
+#include <PubSubClientLD.h>
 #include <ArduinoJson.h>
 
 #include <MatrixText.h>
@@ -68,7 +70,7 @@ byte server[] = { 192, 168, 0, 1 };
 byte ip[]     = { 192, 168, 0, 24 };
 
 EthernetClient ethClient;
-PubSubClient _client(server, 1883, mqtt_callback, ethClient);
+PubSubClientLD _client(server, 1883, mqtt_callback, ethClient);
 
 char _json_message[300];
 bool _got_json_message;
@@ -77,15 +79,18 @@ bool _connected;
 unsigned long _alert_end;
 
 MatrixScreen *_current_screen;
+ThermistorTemperature *TT;
 
+#define THERMISTOR_PIN  A0
 #define W5100_RESET_PIN 14
-#define S_STATUS       "nh/status/req"
-#define P_STATUS       "nh/status/res"
-#define S_BOOKINGS     "nh/bookings/laser/nownext"
-#define P_BOOKINGS     "nh/bookings/poll"
-#define S_LOCAL_ALERT  "nh/tools/laser/ALERT"
-#define S_GLOBAL_ALERT "nh/ALERT"
-#define TOOL_NAME      "laser"
+#define S_STATUS        "nh/status/req"
+#define P_STATUS        "nh/status/res"
+#define S_BOOKINGS      "nh/bookings/laser/nownext"
+#define P_BOOKINGS      "nh/bookings/poll"
+#define P_TEMPERATURE   "nh/temp"
+#define TEMP_FAKE_ID    "9999000000000001"
+#define S_LOCAL_ALERT   "nh/tools/laser/ALERT"
+#define S_GLOBAL_ALERT  "nh/ALERT"
 
 #define DEV_NAME    "LaserDisplay"
 #define STATUS_STRING "STATUS"
@@ -107,7 +112,10 @@ void setup()
   alert = new MsAlert(set_xy, 192, 16);
   alert->init();
 
+  TT = new ThermistorTemperature(THERMISTOR_PIN, 10000, 10000, 3435);
+
   _connected = false;
+
   
   // SPI init
   SPI.begin(4) ;
@@ -311,6 +319,22 @@ void loop()
     nn->process_message(_json_message);
   }
 
+  temperature_loop();
+}
+
+void temperature_loop()
+{
+  static unsigned long last_temp_reading = 0;
+  char buf[100]="";
+
+  if (millis()-last_temp_reading > (60 * 1000))
+  {
+    Serial.println("Get temp");
+    last_temp_reading = millis();
+    float temp = TT->GetTemperature();
+    sprintf(buf, "%s:%.2f", TEMP_FAKE_ID, temp);
+    _client.publish(P_TEMPERATURE, buf);
+  }
 }
 
 byte encode_row(byte row)
@@ -350,9 +374,6 @@ void checkMQTT()
       sprintf(buf, "Restart: %s", DEV_NAME);
       _client.publish(P_STATUS, buf);
       Serial.println("after pub");
-
-      // Also request the latest booking info
-    //_client.publish(P_BOOKINGS, TOOL_NAME);  - now a retained topic, so no need to poll
 
       // Subscribe
       _client.subscribe(S_BOOKINGS);
