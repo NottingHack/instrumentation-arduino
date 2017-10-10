@@ -16,3 +16,6 @@
 [submodule "libraries/EtherShield"]
 	path = libraries/EtherShield
 	url = git@github.com:daniel1111/EtherShield.git
+[submodule "libraries/LiquidCrystal_I2C"]
+	path = libraries/LiquidCrystal_I2C
+	url = git@github.com:marcoschwartz/LiquidCrystal_I2C.git
