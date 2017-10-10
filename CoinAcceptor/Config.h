@@ -44,10 +44,10 @@
 
 // MAC / IP address of device
 byte mac[]    = { 0xDE, 0xED, 0xBA, 0xFE, 0x65, 0xF1 };
-byte ip[]     = { 192, 168, 1, 171 };
+byte ip[]     = { 192, 168, 0, 20 };
 
 // IP of MQTT server
-byte server[] = { 192, 168, 1, 65 };
+byte server[] = { 192, 168, 0, 1 };
 #define MQTT_PORT 1883
 
 // Subscribe to topics
