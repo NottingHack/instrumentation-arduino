@@ -29,7 +29,12 @@
   001 - Initial release
   002 - Add LCD
   003 - ?
-  004 - Update to use MFRC522 RFID, Wiznet instead of ENC28J60 & MQTT instead of UDP
+  004 - Many changes:
+       - Use SAM D21 (Arduino Zero) instead of atmega328 / Arduino Uno
+       - MFRC522 RFID instead of RDM880
+       - Wiznet network instead of ENC28J60 
+       - MQTT instead of UDP
+       - Code split up into different modules
  
  Known issues:
   
