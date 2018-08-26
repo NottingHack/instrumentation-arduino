@@ -23,16 +23,18 @@ bool mdb_serial_data_available()
 void mdb_serial_get_byte(struct MDB_Byte* mdbb)
 {
   uint16_t b;
-  char tmpstr[7];
+  char tmpstr[8];
+
+  while ( !mdb_serial_data_available() );
 
   b = 0;
   b = mdb_serial_USART_Receive();
   memcpy (mdbb, &b, 2); 
   
   if (mdbb->mode)
-    sprintf(tmpstr, "<%.2x*", mdbb->data);
+    sprintf(tmpstr, "< %.2x*", mdbb->data);
   else
-    sprintf(tmpstr, "<%.2x", mdbb->data);
+    sprintf(tmpstr, "< %.2x", mdbb->data);
      
   if (gDebug > 1) dbg_print(tmpstr);
 }
@@ -84,6 +86,9 @@ void mdb_serial_init()
 
 void mdb_serial_write(struct MDB_Byte mdbb)
 {
+  char tmpstr[10];
+  memset(tmpstr, 0, sizeof(tmpstr));
+    
   // Wait for data register to be empty before putting something in it
   while (!_Sercom->USART.INTFLAG.bit.DRE);
 
@@ -94,6 +99,14 @@ void mdb_serial_write(struct MDB_Byte mdbb)
 
   _Sercom->USART.DATA.reg = data;
 
+  if (mdbb.mode)
+    sprintf(tmpstr, "> %.2x*", mdbb.data);
+  else
+    sprintf(tmpstr, "> %.2x", mdbb.data);
+
+  // TODO: gDebug
+  dbg_print(tmpstr);
+  
   return;
 }
 

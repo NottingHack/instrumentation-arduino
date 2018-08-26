@@ -44,6 +44,13 @@ enum cState {NO_CARD, NET_WAIT, GOOD, IN_USE};
  *** Network ***
  ***************/
 
+// Network config defaults - can be overridden using serial menu
+uint8_t const _default_ip[4]        = {192,168,0,30};
+uint8_t const _default_server_ip[4] = {192,168,0,1};
+uint8_t const _default_mac[]        = {  0xDE, 0xED, 0xBA, 0xFE, 0xFE, 0x11 }; 
+#define       DEFAULT_NAME         "CanVend"
+#define       DEFAULT_BASE_TOPIC   "nh/"
+
 // MQTT stuff
 #define MQTT_PORT 1883
 #define S_STATUS "nh/status/req"
@@ -149,7 +156,7 @@ enum cState {NO_CARD, NET_WAIT, GOOD, IN_USE};
 #define VEND	0x13
 #define READER	0x14
 #define REVALUE	0x15
-#define EXPANSION	0x16
+#define EXPANSION	0x17
 
 // Sub Commands
 // setup

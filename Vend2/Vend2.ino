@@ -54,7 +54,7 @@
  http://wiki.nottinghack.org.uk/wiki/Vending_Machine/Cashless_Device_Implementation
  */
 
-#define VERSION_NUM 004
+#define VERSION_NUM 0x04
 #define VERSION_STRING "Vend ver: 004"
 
 
@@ -120,6 +120,7 @@ void MDB_reader();
 void MDB_poll();
 void MDB_setup();
 void MDB_reset();
+void MDB_expan();
 void MDB_Write(int data);
 byte transmitData(struct MDB_Byte* data, byte length) ;
 byte generateChecksum(struct MDB_Byte* data, byte length) ;
@@ -128,8 +129,8 @@ void cancel_pressed();
 
 
 
-struct MDB_Byte recvData[10];
-struct MDB_Byte sendData[10];
+struct MDB_Byte recvData[40];
+struct MDB_Byte sendData[40];
 byte sendLength;
 int rst;
 int debug;
@@ -218,15 +219,6 @@ void MDB_Write(int data)
   memcpy(&b, &data, 2);
 
   mdb_serial_write(b);
-
-  if (debug)
-  {
-    if (b.mode)
-      sprintf(tmpstr, ">%.2x*", b.data);
-    else
-      sprintf(tmpstr, ">%.2x", b.data);
-    if (gDebug > 1) dbg_print(tmpstr);
-  }
 }
 
 
@@ -351,10 +343,12 @@ void MDB_setup()
   mdb_serial_get_byte(&recvData[1]);
   if (recvData[1].data == CONFIG_DATA) 
   {
+    dbg_println(F("MDB_setup: config data"));
+
     for (int i = 2; i < 7; i++) 
       mdb_serial_get_byte(&recvData[i]);
 
-    if (validateChecksum(recvData, 7)) 
+    if (1) //validateChecksum(recvData, 7)) 
     {
       // Store the VMC data
       // need to do stuff here! ***LWK*** done
@@ -377,6 +371,7 @@ void MDB_setup()
               
       if (transmitData(sendData, sendLength) == rUNKNOWN) 
       {
+              dbg_println(F("MDB_setup: tx fail"));
                 // god knows what we do here!
       } else 
       {
@@ -387,10 +382,13 @@ void MDB_setup()
     } else 
     {
       // bad checksum
+          dbg_println(F("MDB_setup: bad chk"));
       MDB_Write(sNAK);
     }
   } else if (recvData[1].data == MINMAX_PRICES)
   {
+    dbg_println(F("MDB_setup: MINMAX_PRICES"));
+    
     // this has four additional data bytes (plus CHK of course)
     for (int i = 2; i < 7; i++) 
       mdb_serial_get_byte(&recvData[i]);
@@ -403,6 +401,7 @@ void MDB_setup()
       maxPrice += recvData[3].data;
       minPrice = recvData[4].data << 8;
       minPrice += recvData[5].data;
+      dbg_println(F("MDB_setup: got minmax"));
 #ifdef DEBUG_PRINT_1
       if (debug) dbg_print("min: ");
       if (debug) dbg_print(recvData[4].data, HEX);
@@ -424,6 +423,56 @@ void MDB_setup()
       // invalid checksum
       MDB_Write(sNAK);
     }
+  }
+  else
+  {
+    dbg_println(F("MDB_setup: unexpected setup"));
+  }
+}
+
+
+void MDB_expan()
+{
+  mdb_serial_get_byte(&recvData[1]);
+  if (recvData[1].data == RESQUEST_ID) 
+  {
+    dbg_println(F("MDB_expan: id"));
+
+    for (int i = 2; i < 32; i++) 
+      mdb_serial_get_byte(&recvData[i]);
+
+    if (validateChecksum(recvData, 32)) 
+    {
+      // VMC is telling us about it's serial number, f/w version, etc. Don't do anything with received data as we don't care
+              
+      // build the data
+      sendLength = 30;
+
+      sendData[0].data = PERIPHERAL_ID;
+      memcpy(&sendData[1], MANUFACTURER_CODE, 3);
+      memcpy(&sendData[4], SERIAL_NUMBER, 12);
+      memcpy(&sendData[16], MODEL_NUMBER, 12);
+      sendData[28].data = 0x00;
+      sendData[29].data = VERSION_NUM;
+      
+      if (transmitData(sendData, sendLength) == rUNKNOWN) 
+      {
+        dbg_println(F("MDB_expan: tx fail"));
+      } else 
+      {
+        // we are rCONTINUE
+        if (debug) dbg_println(F("expan, id sent"));
+      }
+    } else 
+    {
+      // bad checksum
+      dbg_println(F("MDB_expan: bad chk"));
+      MDB_Write(sNAK);
+    }
+  } 
+  else
+  {
+    dbg_println(F("MDB_expan: unexpected subcmd"));
   }
 }
 
@@ -651,6 +700,7 @@ void MDB_vend()
    case VEND_FAILURE:
       MDB_Write(sACK);
       net_tx_vfail(rfid_serial, tran_id);
+      allowVend = 0;
       if (debug) dbg_println(F("Vend failure"));
       break;
       
@@ -700,6 +750,7 @@ void loop()
   bool flush_buffer = false;
   unsigned long time_card_read=0;
   bool net_timeout = false;
+  bool just_polled = false;
   
  
   while (1)
@@ -740,6 +791,7 @@ void loop()
           case POLL:
             if (gDebug > 1) dbg_println(F("Poll"));
             MDB_poll();
+            just_polled = true;
             break;
             
           case READER:
@@ -754,6 +806,7 @@ void loop()
                       
           case EXPANSION:
             dbg_println(F("Expan"));
+            MDB_expan();
             break;
 
           default:
@@ -761,40 +814,48 @@ void loop()
             dbg_println (F("Unknown Cmd"));
             break;
         } 
-      } else // end if 
-      {
-        // Only want to try and read a card after the VMC has polled device 0x50  (it's the last in it's polling cycle)
-        if ((recvData[0].mode) && (recvData[0].data == 0x50)) // TODO: is this right?
-        {
-          readcard = 1;
-        }
-
-        // Poll RFID
-        if ((state == sENABLED) && (card_state == NO_CARD) && (readcard) && (!(recvData[0].mode)))
-        {
-          readcard=0;
-          time_card_read=0;
-          
-          // If this is the first time polling the reader since we successfully read a card, flush its buffer
-          if (flush_buffer)
-          {
-            memset(rfid_serial, 0, sizeof(rfid_serial));
-            flush_buffer = false;
-            time_card_read = 0;
-          }
-          
-          // we can now check for a card
-          if (rfid_poll(rfid_serial))
-          {
-            // card has been read
-            card_state = NET_WAIT;
-            net_tx_auth(rfid_serial, sizeof(rfid_serial)); // try to authenticate card
-            flush_buffer = true;
-            time_card_read = millis();
-          }
-        }
-      }
+      }// else // end if 
+      
+    
     } // end if (MDB.available())
+
+
+  if (just_polled)
+  {
+    dbg_println(F("just polled"));
+    
+    just_polled = false;
+    // Only want to try and read a card after the VMC has polled device 0x50  (it's the last in it's polling cycle)
+//    if ((recvData[0].mode) && (recvData[0].data == 0x50)) // TODO: is this right?
+    {
+      readcard = 1;
+    }
+
+    // Poll RFID
+    if ((state == sENABLED) && (card_state == NO_CARD) && (readcard))// && (!(recvData[0].mode)))
+    {
+      readcard=0;
+      time_card_read=0;
+      
+      // If this is the first time polling the reader since we successfully read a card, flush its buffer
+      if (flush_buffer)
+      {
+        memset(rfid_serial, 0, sizeof(rfid_serial));
+        flush_buffer = false;
+        time_card_read = 0;
+      }
+      
+      // we can now check for a card
+      if (rfid_poll(rfid_serial))
+      {
+        // card has been read
+        card_state = NET_WAIT;
+        net_tx_auth(rfid_serial, sizeof(rfid_serial)); // try to authenticate card
+        flush_buffer = true;
+        time_card_read = millis();
+      }
+    }
+  }    
     
     if (time_card_read && ((millis() - time_card_read) > SESSION_TIMEOUT))
     {

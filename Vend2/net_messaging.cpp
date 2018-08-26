@@ -82,10 +82,10 @@ void net_tx_debug(char *rfid_serial, uint8_t rfid_serial_size)
   net_transport_send(&msg);
 }
 
-void net_rx_message(struct net_msg_t *net_msg, char *rfid_serial, uint8_t rfid_serial_size, char *tran_id, cState *card_state, byte *allowVend, LiquidCrystal_I2C *lcd)
+void net_rx_message(struct net_msg_t *net_msg, char *rfid_serial, uint8_t rfid_serial_size, char *tran_id, uint8_t tran_id_size, cState *card_state, byte *allowVend, LiquidCrystal_I2C *lcd)
 {
   if (!(strncmp((char*)net_msg->msgtype, "GRNT", 4)))
-    net_rx_grant(net_msg->payload, rfid_serial, rfid_serial_size, tran_id, card_state, net_msg);
+    net_rx_grant(net_msg->payload, rfid_serial, rfid_serial_size, tran_id, tran_id_size, card_state, net_msg);
 
   else if (!(strncmp((char*)net_msg->msgtype, "DENY", 4)))
     net_rx_deny(net_msg->payload, rfid_serial, rfid_serial_size, card_state);
@@ -270,7 +270,7 @@ void net_rx_deny(byte *payload, char *rfid_serial, uint8_t rfid_serial_size, cSt
 } 
 
 
-void net_rx_grant(byte *payload, char *rfid_serial, uint8_t rfid_serial_size, char *tran_id, cState *card_state, struct net_msg_t *net_msg)
+void net_rx_grant(byte *payload, char *rfid_serial, uint8_t rfid_serial_size, char *tran_id, uint8_t tran_id_size, cState *card_state, struct net_msg_t *net_msg)
 {
   // expected payload format:
   // <rfid serial>:<transaction id>
@@ -296,7 +296,7 @@ void net_rx_grant(byte *payload, char *rfid_serial, uint8_t rfid_serial_size, ch
     return;
   }
     
-  memcpy(tran_id, payload+i, sizeof(tran_id)-1);
+  memcpy(tran_id, payload+i, tran_id_size-1);
   sprintf(buf, "trnid=%s", tran_id);
   dbg_println(buf);
   *card_state = GOOD;

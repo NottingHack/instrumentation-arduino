@@ -16,14 +16,18 @@ void rfid_init()
 
 bool rfid_poll(char *rfid_serial)
 {
-  if (gDebug > 1)
+  //if (gDebug > 1)
     dbg_println(F("Poll R"));
 
   if (!_rfid_reader->PICC_IsNewCardPresent())
     return false;
 
+  dbg_println(F("card present"));
+
   if (!_rfid_reader->PICC_ReadCardSerial())
     return false;
+
+  dbg_println(F("Got serial"));
 
   // check we are not reading the same card again or if we are its been a sensible time since last read it
   if (!rfid_eq_uid(_rfid_reader->uid, _lastCardNumber) || (millis() - _cardTimeOut) > CARD_TIMEOUT)

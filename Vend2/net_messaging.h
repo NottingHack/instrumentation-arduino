@@ -19,12 +19,12 @@ void net_tx_vreq(int amount_scaled, char *rfid_serial, char *tran_id);
 void net_tx_auth(char *rfid_serial, uint8_t rfid_serial_size);
 void net_tx_debug(char *rfid_serial, uint8_t rfid_serial_size);
 
-void net_rx_message(struct net_msg_t *net_msg, char *rfid_serial, uint8_t rfid_serial_size, char *tran_id, cState *card_state, byte *allowVend, LiquidCrystal_I2C *lcd);
+void net_rx_message(struct net_msg_t *net_msg, char *rfid_serial, uint8_t rfid_serial_size, char *tran_id, uint8_t tran_id_size, cState *card_state, byte *allowVend, LiquidCrystal_I2C *lcd);
 void net_rx_display(byte *payload, LiquidCrystal_I2C *lcd);
 void net_rx_set_debug(byte *payload);
 void net_rx_vend_ok(byte *payload, byte *allowVend, struct net_msg_t *net_msg, char *rfid_serial, char *tran_id);
 void net_rx_vend_deny(byte *allowVend);
 void net_rx_deny(byte *payload, char *rfid_serial, uint8_t rfid_serial_size, cState *card_state);
-void net_rx_grant(byte *payload, char *rfid_serial, uint8_t rfid_serial_size, char *tran_id, cState *card_state, struct net_msg_t *net_msg);
+void net_rx_grant(byte *payload, char *rfid_serial, uint8_t rfid_serial_size, char *tran_id, uint8_t tran_id_size, cState *card_state, struct net_msg_t *net_msg);
 
 #endif

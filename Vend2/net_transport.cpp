@@ -81,7 +81,7 @@ void net_transport_mqtt_callback(char* topic, byte* payload, unsigned int length
 
       last_net_msg = millis();
 
-      net_rx_message(&net_msg, rfid_serial, sizeof(rfid_serial), tran_id, &card_state, &allowVend, &lcd);
+      net_rx_message(&net_msg, rfid_serial, sizeof(rfid_serial), tran_id, sizeof(tran_id), &card_state, &allowVend, &lcd);
     }
   }
 
@@ -96,6 +96,8 @@ void net_transport_send(struct net_msg_t *msg)
   _mqttPayload[4] = ':';
   memcpy(_mqttPayload+5, msg->payload, sizeof(msg->payload));
   _client->publish(_vend_topic, _mqttPayload);
+
+   dbg_println(_mqttPayload);
 }
 
 

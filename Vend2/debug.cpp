@@ -6,7 +6,7 @@
 void dbg_init()
 {
 #if DEBUG_SERIAL
-  SerialUSB.begin(9600);
+  SerialUSB.begin(115200);
 #endif
 }
 

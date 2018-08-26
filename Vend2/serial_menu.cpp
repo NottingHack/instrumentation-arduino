@@ -11,6 +11,7 @@ extern char _dev_name [NET_DEV_NAME_SIZE];
 extern byte _mac[6];
 extern byte _myip[4];
 extern byte _serverip[4];
+//extern uint8_t _default_mac[];
 
 serial_state_t _serial_state;
 static Stream *serial;
@@ -23,23 +24,38 @@ void serial_menu_init()
 
   _serial_state = SS_MAIN_MENU;
 
-  // Read settings from eeprom
-  for (int i = 0; i < 6; i++)
-    _mac[i] = EEPROM.read(EEPROM_MAC+i);
 
-  for (int i = 0; i < 4; i++)
-    _myip[i] = EEPROM.read(EEPROM_IP+i);
-
-  for (int i = 0; i < 4; i++)
-    _serverip[i] = EEPROM.read(EEPROM_SERVER_IP+i);
-
-  for (int i = 0; i < 40; i++)
-    _base_topic[i] = EEPROM.read(EEPROM_BASE_TOPIC+i);
-  _base_topic[40] = '\0';
-
-  for (int i = 0; i < 20; i++)
-    _dev_name[i] = EEPROM.read(EEPROM_NAME+i);
-  _dev_name[20] = '\0';
+  if (EEPROM.isValid())
+  {
+    serial->println("Using saved settings");
+    // Read settings from eeprom
+    for (int i = 0; i < 6; i++)
+      _mac[i] = EEPROM.read(EEPROM_MAC+i);
+  
+    for (int i = 0; i < 4; i++)
+      _myip[i] = EEPROM.read(EEPROM_IP+i);
+  
+    for (int i = 0; i < 4; i++)
+      _serverip[i] = EEPROM.read(EEPROM_SERVER_IP+i);
+  
+    for (int i = 0; i < 40; i++)
+      _base_topic[i] = EEPROM.read(EEPROM_BASE_TOPIC+i);
+    _base_topic[40] = '\0';
+  
+    for (int i = 0; i < 20; i++)
+      _dev_name[i] = EEPROM.read(EEPROM_NAME+i);
+    _dev_name[20] = '\0';
+  }
+  else
+  {
+    // (emulated) EEPROM contents isn't valid - use defaults instead
+    serial->println("Using default settings");
+    memcpy(_mac       , _default_mac      , 6);
+    memcpy(_myip      , _default_ip       , 4);
+    memcpy(_serverip  , _default_server_ip, 4);
+    strcpy(_base_topic, DEFAULT_BASE_TOPIC);
+    strcpy(_dev_name  , DEFAULT_NAME);
+  }
 }
 
 
