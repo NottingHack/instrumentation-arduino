@@ -294,7 +294,7 @@ void DoorSide::set_default_message(byte *msg, uint16_t length)
 
 void DoorSide::show_message(char *msg, int duration)
 {
-  dbg_println(F("show_message"));
+  //dbg_println(F("show_message"));
   _lcd->clear();
   lcd_display_wordwraped(msg);
   _display_custom_msg_until = millis() + duration;
