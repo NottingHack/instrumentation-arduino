@@ -40,7 +40,7 @@
 
 /* Door side b (inside) */
 #define SIDEB_LCD_ADDR        0x3F
-#define SIDEB_DOORBELL_BUTTON 4
+#define SIDEB_DOORBELL_BUTTON 0xFF
 #define SIDEB_BUZZER          A3
 #define SIDEB_RFID_SS         8
 #define SIDEB_RFID_RST        6
@@ -50,8 +50,8 @@
 #define DOOR_CONTACT          A0
 #define DOOR_SENSE            A1
 
-#define DOOR_SENSE_SECURE     0
-#define DOOR_SENSE_UNSECURE   1
+#define DOOR_SENSE_SECURE     1
+#define DOOR_SENSE_UNSECURE   0
 
 #define PORT_EXPANDER_ADDR    0x38
 #define PORT_EXPANDER_RELAY   0    // Bit/port position relay is on (0-7)

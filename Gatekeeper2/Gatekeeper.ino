@@ -134,6 +134,7 @@ void setup()
   
   pinMode(DOOR_SENSE, INPUT);
   digitalWrite(DOOR_SENSE, LOW);
+  dbg_println(F("Setup done"));
   
 } // end void setup()
 
@@ -413,7 +414,8 @@ void callbackMQTT(char* topic, byte* payload, unsigned int length)
 {
   char buf [30];
   char *pTopic;
-
+  
+  
   // Respond to status requests
   if (!strcmp(topic, S_STATUS))
   {
@@ -557,11 +559,19 @@ void lock_door()
 {
   // config.h can be used to set if a high or low on the relay pin should lock the door
   if (DOOR_RELAY_LOCKED)
+  {
     port_expander_write(PORT_EXPANDER_RELAY, true);  // Set bit to lock door
+    
+    // Temp bodge: pin0 on the gk-4 (CNCCORIDOR) board doesn't seem to work. There is now a wire link between pin 0 and pin 1. Remove when gk-4 is fixed.
+    port_expander_write(1, true);
+  }
   else
+  {
     port_expander_write(PORT_EXPANDER_RELAY, false); // clear bit to lock door
+    port_expander_write(1, false); 
+  }
 
-  dbg_println(F("Door locked"));
+  dbg_println(F("Door locked")); 
   _door_relay_state = DR_LOCKED;
   return;
 }
@@ -570,10 +580,16 @@ void unlock_door()
 {
   // config.h can be used to set if a high or low on the relay pin should unlock the door
   if (DOOR_RELAY_LOCKED)
+  {
     port_expander_write(PORT_EXPANDER_RELAY, false); // clear bit to unlock door
+    port_expander_write(1, false); // bodge for gk-4
+  }
   else
+  {
     port_expander_write(PORT_EXPANDER_RELAY, true);  // set bit to unlock door
-
+    port_expander_write(1, true); // bodge for gk-4
+  }
+  
   dbg_println(F("Door unlocked"));
   _door_relay_state = DR_UNLOCKED;
   _door_unlocked_time = millis();
