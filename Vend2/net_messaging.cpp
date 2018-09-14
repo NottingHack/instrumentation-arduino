@@ -162,6 +162,7 @@ void net_rx_display(byte *payload, LiquidCrystal_I2C *lcd)
 void net_rx_set_debug(byte *payload)
 {
   // Set debug level (update EEPROM if applicable)
+  /* debug level is now set via serial menu, not from the network
   
   short debug_level;
   short new_dlvl;
@@ -195,11 +196,12 @@ void net_rx_set_debug(byte *payload)
     EEPROM.commit();
     dbg_println(F("EEPROM Updated"));
   }
-    
-  gDebug = new_dlvl;  
-  dbg_println(F("set debug"));
-  gDebug = 2;
-} 
+
+  _debug_level = new_dlvl;
+  dbg_println(F("set debug")); 
+  
+  */
+}
 
 
 

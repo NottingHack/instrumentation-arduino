@@ -11,7 +11,8 @@ enum serial_state_t
   SS_SET_IP,
   SS_SET_NAME,
   SS_SET_TOPIC,
-  SS_SET_SERVER_IP
+  SS_SET_SERVER_IP,
+  SS_SET_DEBUG_LEVEL
 };
 
 
@@ -26,10 +27,12 @@ void serial_set_ip(char *cmd);
 void serial_set_server_ip(char *cmd);
 void serial_set_name(char *cmd);
 void serial_set_topic(char *cmd);
+void serial_set_debug_level(char *cmd);
 void set_mac(unsigned int *mac_addr);
 void set_ip(int *ip_addr);
 void set_server_ip(int *ip_addr);
 void set_name(char *new_name);
 void set_topic(char *new_topic);
+void set_debug_level(uint8_t dbglvl);
 
 

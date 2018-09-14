@@ -11,7 +11,7 @@ extern char _dev_name [NET_DEV_NAME_SIZE];
 extern byte _mac[6];
 extern byte _myip[4];
 extern byte _serverip[4];
-//extern uint8_t _default_mac[];
+extern uint8_t _debug_level;
 
 serial_state_t _serial_state;
 static Stream *serial;
@@ -45,6 +45,8 @@ void serial_menu_init()
     for (int i = 0; i < 20; i++)
       _dev_name[i] = EEPROM.read(EEPROM_NAME+i);
     _dev_name[20] = '\0';
+
+    _debug_level = EEPROM.read(EEPROM_DEBUG);
   }
   else
   {
@@ -55,9 +57,29 @@ void serial_menu_init()
     memcpy(_serverip  , _default_server_ip, 4);
     strcpy(_base_topic, DEFAULT_BASE_TOPIC);
     strcpy(_dev_name  , DEFAULT_NAME);
+    _debug_level = 1;
+
+    // Write the default config to EEPROM
+    for (int i = 0; i < 6; i++)
+      EEPROM.write(EEPROM_MAC+i, _mac[i]);
+
+    for (int i = 0; i < 4; i++)
+      EEPROM.write(EEPROM_IP+i, _myip[i]);
+
+    for (int i = 0; i < 4; i++)
+      EEPROM.write(EEPROM_SERVER_IP+i, _serverip[i]);
+
+    for (int i = 0; i < 40; i++)
+      EEPROM.write(EEPROM_BASE_TOPIC+i, _base_topic[i]);
+
+    for (int i = 0; i < 20; i++)
+      EEPROM.write(EEPROM_NAME+i, _dev_name[i]);
+
+    EEPROM.write(EEPROM_DEBUG, _debug_level);
+
+    EEPROM.commit();
   }
 }
-
 
 void serial_menu()
 /* Process any serial input since last call - if any - and call serial_process when we have a cr/lf terminated line. */
@@ -116,6 +138,11 @@ void serial_process(char *cmd)
     serial_set_server_ip(cmd);
     serial_main_menu("0");
   }
+  else if (_serial_state == SS_SET_DEBUG_LEVEL)
+  {
+    serial_set_debug_level(cmd);
+    serial_main_menu("0");
+  }
 }
 
 void serial_main_menu(char *cmd)
@@ -128,7 +155,7 @@ void serial_main_menu(char *cmd)
   case 1: // "[ 1 ] Show current settings"
     serial_show_settings();
     serial->println();
-    serial_show_main_menu();      
+    serial_show_main_menu();
     break;
 
   case 2: // "[ 2 ] Set MAC address"
@@ -151,10 +178,8 @@ void serial_main_menu(char *cmd)
     serial_set_topic(NULL);
     break;    
 
-  case 7: // "[ 7 ] Reset/reboot"
-    serial->println("Reboot....");
-    // wdt_enable(WDTO_2S); // Watchdog abuse...
-    while(1);
+  case 7: // "7 Set debug level"
+    serial_set_debug_level(NULL);
     break;
 
   default:
@@ -176,7 +201,7 @@ void serial_show_main_menu()
   serial->println(F("4 Set server IP"));
   serial->println(F("5 Set name"));
   serial->println(F("6 Set base topic"));
-  serial->println(F("7 Reboot"));
+  serial->println(F("7 Set debug level"));
   serial->print(F("Enter selection: "));
 }
 
@@ -205,6 +230,9 @@ void serial_show_settings()
 
   serial->print(F("Base topic: "));
   serial->println(_base_topic);
+
+  serial->print(F("Debug level: "));
+  serial->println(_debug_level);
 }
 
 void serial_set_mac(char *cmd)
@@ -376,6 +404,44 @@ void serial_set_topic(char *cmd)
   return;
 }
 
+
+void serial_set_debug_level(char *cmd)
+/* Set topic name, and output confirmation */
+{
+  _serial_state = SS_SET_DEBUG_LEVEL;
+
+  if (cmd == NULL)
+  {
+    serial->print(F("\nEnter debug level (0=no debug, 1=basic, 2=comms trace): "));
+  } 
+  else
+  {
+    if (strlen(cmd) == 1)
+    {
+      int dbglvl = atoi(cmd);
+      if (dbglvl >= 0 && dbglvl <= 2)
+      {
+        serial->println(F("\nOk - Saving"));
+        set_debug_level(dbglvl);
+      }
+      else
+      {
+        serial->println(F("\nError: invalid entry"));
+      }
+    }
+    else
+    {
+      serial->println(F("\nError: too long"));
+    }
+
+    // Return to main menu
+    _serial_state = SS_MAIN_MENU;
+  }
+
+  return;
+}
+
+
 void set_mac(unsigned int *mac_addr)
 /* Write mac_addr to EEPROM */
 {
@@ -431,4 +497,9 @@ void set_topic(char *new_topic)
   EEPROM.commit();
 }
 
-
+void set_debug_level(uint8_t dbglvl)
+{
+  EEPROM.write(EEPROM_DEBUG, dbglvl);
+  _debug_level = dbglvl;
+  EEPROM.commit();
+}

@@ -7,10 +7,7 @@
 #define NO_RTS_PIN 255
 #define NO_CTS_PIN 255
 
-
-//#define DUMMY_MDB_SERIAL
-
-#ifndef DUMMY_MDB_SERIAL
+extern uint8_t _debug_level;
 
 Sercom* _Sercom;
 SERCOM* _SERCOM;
@@ -36,7 +33,7 @@ void mdb_serial_get_byte(struct MDB_Byte* mdbb)
   else
     sprintf(tmpstr, "< %.2x", mdbb->data);
      
-  if (gDebug > 1) dbg_print(tmpstr);
+  if (_debug_level > 1) dbg_print(tmpstr);
 }
 
 uint16_t mdb_serial_USART_Receive()
@@ -88,7 +85,7 @@ void mdb_serial_write(struct MDB_Byte mdbb)
 {
   char tmpstr[10];
   memset(tmpstr, 0, sizeof(tmpstr));
-    
+
   // Wait for data register to be empty before putting something in it
   while (!_Sercom->USART.INTFLAG.bit.DRE);
 
@@ -104,44 +101,8 @@ void mdb_serial_write(struct MDB_Byte mdbb)
   else
     sprintf(tmpstr, "> %.2x", mdbb.data);
 
-  // TODO: gDebug
-  dbg_print(tmpstr);
-  
+
+  if (_debug_level > 1) dbg_print(tmpstr);
+
   return;
 }
-
-
-
-#else
-
-
-
-bool mdb_serial_data_available()
-{
-  return 0;
-}
-
-void mdb_serial_get_byte(struct MDB_Byte* mdbb)
-{
-  return;
-}
-
-uint16_t mdb_serial_USART_Receive()
-{
-  return -1;
-}
-
-void mdb_serial_init()
-{
-  return;
-}
-
-void mdb_serial_write(struct MDB_Byte mdbb)
-{
-  return;
-}
-
-#endif
-
-
-

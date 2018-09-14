@@ -16,9 +16,6 @@ void dbg_println(const __FlashStringHelper *n)
   uint8_t c;
   byte *payload;
 
-  if (gDebug > 0)
-  {
-
 #if DEBUG_SERIAL
     SerialUSB.println(n);
 #endif
@@ -36,8 +33,6 @@ void dbg_println(const __FlashStringHelper *n)
 
     net_transport_send(&msg);
 #endif
-
-  }
 }
 
 void dbg_println(const char* str)
@@ -48,18 +43,15 @@ void dbg_println(const char* str)
 
 void dbg_print(const char* str)
 {
- // if (gDebug > 0)
-  {
+
 #if DEBUG_SERIAL
-    SerialUSB.println(str);
+  SerialUSB.println(str);
 #endif
 
 #if DEBUG_NETWORK
-    struct net_msg_t msg;
-    memcpy(msg.msgtype,"INFO", 4);
-    strncpy((char*)msg.payload, str, sizeof(msg.payload));
-    net_transport_send(&msg);
+  struct net_msg_t msg;
+  memcpy(msg.msgtype,"INFO", 4);
+  strncpy((char*)msg.payload, str, sizeof(msg.payload));
+  net_transport_send(&msg);
 #endif
-
-  }
 }

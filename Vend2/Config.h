@@ -28,7 +28,7 @@
  These are the global config parameters
  Including Pin Outs, IP's, TimeOut's etc
 
- Arduino Wiznet shield uses pings 10, 11, 12, 13 for the ethernet
+ Arduino Wiznet shield uses pins 10, 11, 12, 13 for the ethernet
 
  */
 
@@ -39,7 +39,6 @@
 
 enum cState {NO_CARD, NET_WAIT, GOOD, IN_USE};
 
-
 /***************
  *** Network ***
  ***************/
@@ -48,7 +47,7 @@ enum cState {NO_CARD, NET_WAIT, GOOD, IN_USE};
 uint8_t const _default_ip[4]        = {192,168,0,30};
 uint8_t const _default_server_ip[4] = {192,168,0,1};
 uint8_t const _default_mac[]        = {  0xDE, 0xED, 0xBA, 0xFE, 0xFE, 0x11 }; 
-#define       DEFAULT_NAME         "CanVend"
+#define       DEFAULT_NAME         "can_vend"
 #define       DEFAULT_BASE_TOPIC   "nh/"
 
 // MQTT stuff

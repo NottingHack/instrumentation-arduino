@@ -1,29 +1,27 @@
 
 /**************************************************** 
- * sketch = Vend
+ * sketch = Vend2
  *
  * Nottingham Hackspace
  * CC-BY-SA
  *
- * Source = http://wiki.nottinghack.org.uk/wiki/...
- * Target controller = Arduino 328 (Nanode v5)
- * Clock speed = 16 MHz
- * Development platform = Arduino IDE 1.0.1
- * C compiler = WinAVR from Arduino IDE 1.0.1
- * 
- * 
+ * Source = https://wiki.nottinghack.org.uk/wiki/Vending_Machine/Cashless_Device_Implementation
+ * Target controller = SAM D21 / Arduino Zero
+ * Development platform = Arduino IDE 1.8.5
+ *
+ *
  * This code is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. 
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
  *
- * RFID payment system for Vending Machine at 
- * Nottingham Hackspace and is part of the 
+ * RFID payment system for Vending Machines at
+ * Nottingham Hackspace and is part of the
  * Hackspace Instrumentation Project
  *
- * 
+ *
  ****************************************************/
 
-/*  
+/*
  History
   000 - Started 01/08/2011
   001 - Initial release
@@ -32,7 +30,7 @@
   004 - Many changes:
        - Use SAM D21 (Arduino Zero) instead of atmega328 / Arduino Uno
        - MFRC522 RFID instead of RDM880
-       - Wiznet network instead of ENC28J60 
+       - Wiznet network instead of ENC28J60
        - MQTT instead of UDP
        - Code split up into different modules
  
@@ -57,15 +55,6 @@
 #define VERSION_NUM 0x04
 #define VERSION_STRING "Vend ver: 004"
 
-
-// Uncomment for debug prints
-#define DEBUG_PRINT
-// extra prints likely to upset timing
-///#define DEBUG_PRINT_1
-
-// shows human readable msgs on serial line, shouldn't mess with timing
-#define HUMAN_PRINT
-
 #define SESSION_TIMEOUT 45000 // 45secs.
 
 
@@ -82,7 +71,6 @@
 #include <FlashAsEEPROM.h>
 #include <LiquidCrystal_I2C.h>
 #include <Wire.h> 
-// #include <avr/wdt.h>
 #include <avr/pgmspace.h>
 
 
@@ -133,9 +121,9 @@ struct MDB_Byte recvData[40];
 struct MDB_Byte sendData[40];
 byte sendLength;
 int rst;
-int debug;
 byte ret_button;
-short gDebug;
+uint8_t _debug_level = 0;
+
 byte rf_count;
 LiquidCrystal_I2C lcd(LCD_I2C_ADDRESS,LCD_WIDTH,2);
 
@@ -172,7 +160,7 @@ byte transmitData(struct MDB_Byte* data, byte length)
   struct MDB_Byte mdbb;
   int tx;
   
-  if (debug) 
+  if (_debug_level) 
     dbg_println("(");
   
   do 
@@ -203,8 +191,8 @@ byte transmitData(struct MDB_Byte* data, byte length)
       transmitState = rUNKNOWN;
     }
   } while (transmitState == rRETRANSMIT);
-    if (debug) dbg_println(")");
-  
+  if (_debug_level) dbg_println(")");
+
   return transmitState;
 } // end void transmitData
 
@@ -247,11 +235,6 @@ void setup()
   // Clear transaction id
   memset(tran_id, 0, sizeof(tran_id));
 
-  // Get debug level
-  gDebug = 2; //EEPROM.read(EEPROM_DEBUG); FIXME
-
-  debug = 1;
-
   card_state = NO_CARD;
   cancel_vend = 0;
 
@@ -287,12 +270,9 @@ void setup()
   net_tx_debug(rfid_serial, sizeof(rfid_serial)); // reqeust debug level
 
   dbg_println(F("Init done"));
-  SerialUSB.println(gDebug);
   lcd.clear();
- // wdt_enable (WDTO_8S);
 
   serial_show_main_menu();
-  
 } // end void setup()
 
 
@@ -329,12 +309,12 @@ void MDB_reset()
     card_state = NO_CARD;
 
     digitalWrite(LED_ACTIVE, LOW);
-    if (debug) dbg_println(F("RST: ACK sent"));
+    if (_debug_level) dbg_println(F("RST: ACK sent"));
 
   } else
   {
     MDB_Write(sNAK);
-    if (debug) dbg_println(F("RST: NAK sent"));
+    if (_debug_level) dbg_println(F("RST: NAK sent"));
   }
 }
 
@@ -377,18 +357,19 @@ void MDB_setup()
       {
         // we are rCONTINUE
         // we still need min/max prices to change state
-        if (debug) dbg_println(F("Setup recv, config sent"));
+        if (_debug_level) dbg_println(F("Setup recv, config sent"));
       }
-    } else 
+    } else
     {
       // bad checksum
-          dbg_println(F("MDB_setup: bad chk"));
+      dbg_println(F("MDB_setup: bad chk"));
       MDB_Write(sNAK);
     }
   } else if (recvData[1].data == MINMAX_PRICES)
   {
-    dbg_println(F("MDB_setup: MINMAX_PRICES"));
-    
+    if (_debug_level)
+      dbg_println(F("MDB_setup: MINMAX_PRICES"));
+
     // this has four additional data bytes (plus CHK of course)
     for (int i = 2; i < 7; i++) 
       mdb_serial_get_byte(&recvData[i]);
@@ -401,24 +382,18 @@ void MDB_setup()
       maxPrice += recvData[3].data;
       minPrice = recvData[4].data << 8;
       minPrice += recvData[5].data;
-      dbg_println(F("MDB_setup: got minmax"));
-#ifdef DEBUG_PRINT_1
-      if (debug) dbg_print("min: ");
-      if (debug) dbg_print(recvData[4].data, HEX);
-      if (debug) dbg_print(", ");
-      if (debug) dbg_print(recvData[5].data, HEX);
-      if (debug) dbg_print(": ");
-      if (debug) dbg_println(minPrice);
-#endif
+
+      if (_debug_level) dbg_println(F("MDB_setup: got minmax"));
 
       // respond with just an ACK
       MDB_Write(sACK);
       state = sDISABLED;
       digitalWrite(LED_ACTIVE, LOW);
 
-      if (debug) dbg_println(F("State Change: Disabled!"));
+      if (_debug_level) dbg_println(F("State Change: Disabled!"));
 
-    } else 
+    }
+    else
     {
       // invalid checksum
       MDB_Write(sNAK);
@@ -426,7 +401,7 @@ void MDB_setup()
   }
   else
   {
-    dbg_println(F("MDB_setup: unexpected setup"));
+    if (_debug_level) dbg_println(F("MDB_setup: unexpected setup"));
   }
 }
 
@@ -436,7 +411,7 @@ void MDB_expan()
   mdb_serial_get_byte(&recvData[1]);
   if (recvData[1].data == RESQUEST_ID) 
   {
-    dbg_println(F("MDB_expan: id"));
+    if (_debug_level) dbg_println(F("MDB_expan: id"));
 
     for (int i = 2; i < 32; i++) 
       mdb_serial_get_byte(&recvData[i]);
@@ -457,22 +432,22 @@ void MDB_expan()
       
       if (transmitData(sendData, sendLength) == rUNKNOWN) 
       {
-        dbg_println(F("MDB_expan: tx fail"));
+        if (_debug_level) dbg_println(F("MDB_expan: tx fail"));
       } else 
       {
         // we are rCONTINUE
-        if (debug) dbg_println(F("expan, id sent"));
+        if (_debug_level) dbg_println(F("expan, id sent"));
       }
     } else 
     {
       // bad checksum
-      dbg_println(F("MDB_expan: bad chk"));
+      if (_debug_level) dbg_println(F("MDB_expan: bad chk"));
       MDB_Write(sNAK);
     }
   } 
   else
   {
-    dbg_println(F("MDB_expan: unexpected subcmd"));
+    if (_debug_level) dbg_println(F("MDB_expan: unexpected subcmd"));
   }
 }
 
@@ -486,7 +461,7 @@ void MDB_poll()
   {
     // bad checksum
     MDB_Write(sNAK);
-    if (debug) dbg_println(F(">>NAK - bad csum"));
+    if (_debug_level) dbg_println(F(">>NAK - bad csum"));
     return;
   }
 
@@ -503,9 +478,9 @@ void MDB_poll()
     commandOOS = false;
     MDB_Write(CMD_OUT_OF_SEQUENCE);
     MDB_Write(CMD_OUT_OF_SEQUENCE_CHK);
-#ifdef DEBUG_PRINT_1
-    if (debug) dbg_println(F("Sent cms OOS"));
-#endif
+
+    if (_debug_level) dbg_println(F("Sent cms OOS"));
+
     return;
   }
 
@@ -513,10 +488,9 @@ void MDB_poll()
   {
     sendData[0].data = JUST_RESET;
     transmitData(sendData, 1);
-    justReset = false;  // told vmc 
-#ifdef DEBUG_PRINT_1
-    if (debug) dbg_println(F("Sent JUST_RESET"));
-#endif
+    justReset = false;  // told vmc
+
+    if (_debug_level) dbg_println(F("Sent JUST_RESET"));
     return;
    }
 
@@ -531,14 +505,14 @@ void MDB_poll()
 
      if (transmitData(sendData, sendLength) == rUNKNOWN)
      {
-       if (debug) dbg_println(F("huh?"));
+       if (_debug_level) dbg_println(F("huh?"));
      } else 
      {
        // vend should work!
        //allowVend = 0;
      }
      
-     if (debug) dbg_println(F("allowed vend"));
+     if (_debug_level) dbg_println(F("allowed vend"));
      return;
    } else if (allowVend == 2) 
    {
@@ -564,9 +538,8 @@ void MDB_poll()
      } else 
      {
        state = sSESSION_IDLE;
-//#ifdef HUMAN_PRINT
-       if (debug) dbg_println(F("State change: Session Idle!"));
-//#endif
+
+       dbg_println(F("State change: Session Idle!"));
      }
 
      card_state = IN_USE;
@@ -599,9 +572,9 @@ void MDB_reader()
         MDB_Write(sACK);
         digitalWrite(LED_ACTIVE, HIGH);
         memset(rfid_serial, 0, sizeof(rfid_serial));
-#ifdef HUMAN_PRINT
-        if (debug) dbg_println(F("State Change: Enabled!"));
-#endif
+
+        dbg_println(F("State Change: Enabled!"));
+
         lcd.clear();
         lcd.print(F("Ready..."));
       } else 
@@ -630,7 +603,7 @@ void MDB_reader()
         digitalWrite(LED_ACTIVE, LOW);
         memset(rfid_serial, 0, sizeof(rfid_serial));
 
-        if (debug) dbg_println(F("State Change: Disabled! (VMC cmd)"));
+        dbg_println(F("State Change: Disabled! (VMC cmd)"));
         lcd.clear();
 
       } else 
@@ -670,7 +643,7 @@ void MDB_vend()
 
       sprintf(buf, "Vendreq %d (%dp)", amount, amount_scaled); 
      
-      if (debug) dbg_print(buf);
+      if (_debug_level) dbg_print(buf);
       
       if (/*validateChecksum(recvData, 6)*/ 1) 
       {
@@ -701,11 +674,11 @@ void MDB_vend()
       MDB_Write(sACK);
       net_tx_vfail(rfid_serial, tran_id);
       allowVend = 0;
-      if (debug) dbg_println(F("Vend failure"));
+      dbg_println(F("Vend failure"));
       break;
       
     case SESSION_COMPLETE:
-      if (debug) dbg_println(F("Ses complete"));
+      dbg_println(F("Session complete"));
       // build the response
       sendLength = 1;
       memset(sendData, 0, sizeof(sendData));
@@ -721,7 +694,7 @@ void MDB_vend()
       break;
       
     case CASH_SALE:
-      if (debug) dbg_println(F("Cash sale"));
+      if (_debug_level) dbg_println(F("Cash sale"));
        // four more bytes of data, plus checksum
       for (int i = 2; i < 6; i++) 
         mdb_serial_get_byte(&recvData[i]);
@@ -739,7 +712,7 @@ void MDB_vend()
     
       
     default:
-      if (debug) dbg_println(F("MDB_vend> err"));
+      if (_debug_level) dbg_println(F("MDB_vend> err"));
   } 
 }
 
@@ -766,7 +739,7 @@ void loop()
       if (!net_timeout)
       {
         net_timeout = true;
-        dbg_println(F("Net timeout"));
+        if (_debug_level) dbg_println(F("Net timeout"));
       }
     }
     
@@ -779,39 +752,39 @@ void loop()
         switch (recvData[0].data) 
         {
           case RESET:
-            dbg_println(F("Reset"));
+            if (_debug_level) dbg_println(F("Reset"));
             MDB_reset();
             break;
   
           case SETUP:
-            dbg_println(F("Setup"));
+            if (_debug_level) dbg_println(F("Setup"));
             MDB_setup();
             break;
             
           case POLL:
-            if (gDebug > 1) dbg_println(F("Poll"));
+            if (_debug_level) dbg_println(F("Poll"));
             MDB_poll();
             just_polled = true;
             break;
             
           case READER:
-            dbg_println(F("Reader"));
+            if (_debug_level) dbg_println(F("Reader"));
             MDB_reader();
             break;
            
           case VEND:
-            dbg_println(F("Vend"));
+            if (_debug_level) dbg_println(F("Vend"));
             MDB_vend();          
             break;
                       
           case EXPANSION:
-            dbg_println(F("Expan"));
+            if (_debug_level) dbg_println(F("Expan"));
             MDB_expan();
             break;
 
           default:
             // should never get here once done programing all features
-            dbg_println (F("Unknown Cmd"));
+            if (_debug_level) dbg_println (F("Unknown Cmd"));
             break;
         } 
       }// else // end if 
@@ -822,7 +795,7 @@ void loop()
 
   if (just_polled)
   {
-    dbg_println(F("just polled"));
+    if (_debug_level) dbg_println(F("just polled"));
     
     just_polled = false;
     // Only want to try and read a card after the VMC has polled device 0x50  (it's the last in it's polling cycle)
@@ -859,7 +832,7 @@ void loop()
     
     if (time_card_read && ((millis() - time_card_read) > SESSION_TIMEOUT))
     {
-      dbg_println(F("ses timeout"));
+      dbg_println(F("Session timeout"));
       cancel_pressed();
       time_card_read = 0; 
     }
@@ -903,7 +876,7 @@ void cancel_pressed()
   // If vend has already be approved, then it's too late.
   if (allowVend == 1)
   {
-    dbg_println(F("OOS cancel"));
+    if (_debug_level) dbg_println(F("OOS cancel"));
     return;    
   }
   
@@ -917,7 +890,7 @@ void cancel_pressed()
     card_state = NO_CARD;
   } else
   {
-    dbg_println(F("Nothing to cancel"));
+    if (_debug_level) dbg_println(F("Nothing to cancel"));
   }
 }
 
