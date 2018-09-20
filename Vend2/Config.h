@@ -76,7 +76,7 @@ uint8_t const _default_mac[]        = {  0xDE, 0xED, 0xBA, 0xFE, 0xFE, 0x11 };
 /***************
  ***   IO    ***
  ***************/
-#define RETURN_BUTTON 2
+#define RETURN_BUTTON 4
 #define LED_ACTIVE 8
 #define LED_CARD 3
 
