@@ -271,6 +271,8 @@ void setup()
 
   dbg_println(F("Init done"));
   lcd.clear();
+  lcd.print(F("Wait..."));
+  
 
   serial_show_main_menu();
 } // end void setup()
