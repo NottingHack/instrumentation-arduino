@@ -25,6 +25,7 @@ void loop();
 
 void lcd_loop();
 void poll_rfid(DoorSide *side);
+void check_for_override_rfid(char *rfid);
 void check_buttons(DoorSide *side);
 void send_action(const char *act, char *msg, bool include_door_id);
 void dbg_println(const __FlashStringHelper *n);
@@ -37,9 +38,10 @@ void lcd_display_mqtt(char *payload);
 // IP of MQTT server
 byte _server[4];
 
-char _base_topic[41];
+char _base_topic[BASE_TOPIC_LEN]; // e.g. "nh/gk"
 char _dev_name [21];
 byte _door_id;
+char _rfid_override[21];
 
 // MAC / IP address of device
 byte _mac[6];

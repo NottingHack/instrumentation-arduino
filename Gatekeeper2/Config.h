@@ -88,12 +88,17 @@
 // Port the MQTT broker is on
 #define MQTT_PORT 1883
 
+#define BASE_TOPIC_LEN 10
+
 // Locations in EEPROM of various settings
 #define EEPROM_MAC           0 //  6 bytes
 #define EEPROM_IP            6 //  4 bytes 
-#define EEPROM_BASE_TOPIC   10 // 40 bytes   e.g. "nh/gk"
+#define EEPROM_BASE_TOPIC   10 // 10 bytes   e.g. "nh/gk"
+                               // 30 bytes now unused
 #define EEPROM_DOOR_ID      50 //  1 byte
 #define EEPROM_SERVER_IP    51 //  4 bytes
+#define EEPROM_EMGCY_RFID   55 // 21 bytes
+
 
 // Status Topic
 #define S_STATUS "nh/status/req"
@@ -116,7 +121,8 @@ enum serial_state_t
   SS_SET_IP,
   SS_SET_DOOR_ID,
   SS_SET_TOPIC,
-  SS_SET_SERVER_IP
+  SS_SET_SERVER_IP,
+  SS_SET_EMGCY_RFID
 };
 
 enum door_relay_state_t

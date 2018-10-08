@@ -31,8 +31,9 @@
 #include "Config.h"
 #include "Menu.h"
 
-extern char _base_topic[41];
+extern char _base_topic[BASE_TOPIC_LEN];
 extern byte _door_id;
+extern char _rfid_override[21];
 
 // MAC / IP address of device
 extern byte _mac[6];
@@ -46,7 +47,7 @@ extern serial_state_t _serial_state;
 void serial_menu()
 /* Process any serial input since last call - if any - and call serial_process when we have a cr/lf terminated line. */
 {
-  static char serial_line[65];
+  static char serial_line[41];
   static unsigned int i = 0;
   char c;
 
@@ -100,6 +101,11 @@ void serial_process(char *cmd)
     serial_set_server_ip(cmd);
     serial_main_menu("0");
   }
+  else if (_serial_state == SS_SET_EMGCY_RFID)
+  {
+    serial_set_rfid(cmd);
+    serial_main_menu("0");
+  }
 }
 
 void serial_main_menu(const char *cmd)
@@ -135,7 +141,11 @@ void serial_main_menu(const char *cmd)
     serial_set_topic(NULL);
     break;
 
-  case 7: // "[ 7 ] Reset/reboot"
+  case 7: // "[ 7 ] Set RFID override"
+    serial_set_rfid(NULL);
+    break;
+
+  case 8: // "[ 8 ] Reset/reboot"
     Serial.println("Reboot....");
     wdt_enable(WDTO_2S); // Watchdog abuse...
     while(1);
@@ -160,7 +170,8 @@ void serial_show_main_menu()
   Serial.println(F("[ 4 ] Set server IP"));
   Serial.println(F("[ 5 ] Set door id"));
   Serial.println(F("[ 6 ] Set base topic"));
-  Serial.println(F("[ 7 ] Reset"));
+  Serial.println(F("[ 7 ] Set RFID override"));
+  Serial.println(F("[ 8 ] Reset"));
   Serial.print(F("Selection: "));
 }
 
@@ -189,6 +200,9 @@ void serial_show_settings()
 
   Serial.print(F("Base topic : "));
   Serial.println(_base_topic);
+
+  Serial.print(F("RFID override : "));
+  Serial.println(_rfid_override);
 }
 
 void serial_set_mac(char *cmd)
@@ -361,6 +375,37 @@ void serial_set_topic(char *cmd)
   return;
 }
 
+void serial_set_rfid(char *cmd)
+/* Set RFID serial */
+{
+  _serial_state = SS_SET_EMGCY_RFID;
+
+  if (cmd == NULL)
+  {
+    Serial.print(F("\nEnter RFID serial:"));
+  } 
+  else
+  {
+    if 
+    (
+      (strlen(cmd) ==  8) ||
+      (strlen(cmd) == 14) ||
+      (strlen(cmd) == 20)
+    )
+    {
+      Serial.println(F("\nOk - Saving"));
+      set_rfid(cmd);
+    }
+    else
+    {
+      Serial.println(F("\nError: incorrect length"));
+    }
+    // Return to main menu
+    _serial_state = SS_MAIN_MENU;
+  }
+  return;
+}
+
 void set_mac(byte *mac_addr)
 /* Write mac_addr to EEPROM */
 {
@@ -405,6 +450,16 @@ void set_topic(char *new_topic)
   {
     EEPROM.write(EEPROM_BASE_TOPIC+i, new_topic[i]);
     _base_topic[i] = new_topic[i];
+  }
+}
+
+void set_rfid(char *rfid_serial)
+/* Write rfid_serial to EEPROM */
+{
+  for (int i = 0; i < 21; i++)
+  {
+    EEPROM.write(EEPROM_EMGCY_RFID+i, rfid_serial[i]);
+    _rfid_override[i] = rfid_serial[i];
   }
 }
 
