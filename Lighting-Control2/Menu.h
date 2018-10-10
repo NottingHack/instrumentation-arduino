@@ -22,3 +22,4 @@ bool serial_set_input_overide(char *cmd);
 void set_input_enables(int channel, bool enable);
 void set_override_masks(int channel, uint32_t mask);
 void set_override_states(int channel, uint32_t states);
+void set_input_statefullness(int channel, bool enable);
