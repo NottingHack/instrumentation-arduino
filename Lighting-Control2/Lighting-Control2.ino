@@ -215,7 +215,7 @@ void read_inputs()
           uint32_t _override_state = _override_states[i];
           // if we are tracking the state of this input pin is enabled (low == enabled)
           // amd this the second press 
-          if (((_input_statefullness & (1<<i)) == 0) && ((_input_state_tracking & (1<<i)) == 1))
+          if (((_input_statefullness & (1<<i)) == 0) && ((_input_state_tracking & (1<<i)) != 0))
           {
             // flip the output state requests
             _override_state = ~_override_state;
@@ -232,7 +232,7 @@ void read_inputs()
               }
               update_outputs(chan);
               char channel[3];
-              sprintf(channel, "%0.2u", chan);
+              sprintf(channel, "%02lu", chan);
               publish_output_state(channel);
             }
           }
