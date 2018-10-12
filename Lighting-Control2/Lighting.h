@@ -4,10 +4,6 @@ enum dev_state_t
 {
   DEV_NO_CONN,    // No MQTT connection
   DEV_IDLE,       // Idle - tool powered off, waiting for RFID card
-  DEV_AUTH_WAIT,  // Card presented, waiting for yay/nay response from server
-  DEV_ACTIVE,     // Tool power enabled - RFID string in memory 
-  DEV_INDUCT,     // Waiting for card to add to inducted list
-  DEV_INDUCT_WAIT // Asked server to induct new card, waiting for reply.
 };
 
 
@@ -48,6 +44,7 @@ byte _ip[4];
 uint8_t _input_enables;
 uint32_t _override_masks[8];
 uint32_t _override_states[8];
+uint8_t _input_statefullness;
 
 serial_state_t _serial_state;
 

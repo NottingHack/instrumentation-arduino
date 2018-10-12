@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014, Daniel Swann <hs@dswann.co.uk>
+ * Copyright (c) 20148, Daniel Swann <hs@dswann.co.uk>, Matt Lloyd <dps.lwk@gmail.com>
  * All rights reserved.
  * 
  * Redistribution and use in source and binary forms, with or without
@@ -57,6 +57,7 @@
 #define EEPROM_INPUT_ENABLES 74 //  1 bytes   0bit == enabled, 1 == disabled
 #define EEPROM_OVERRIDE_MASKS   75 // 24 bytes   3 bytes per 8 inputs 
 #define EEPROM_OVERRIDE_STATES  99 // 24 bytes   3 bytes per 8 inputs
+#define EEPROM_INPUT_STATEFULL  123 // 1 bytes   0bit == enabled, 1 == disabled
 
 #define MQTT_PORT 1883
 
