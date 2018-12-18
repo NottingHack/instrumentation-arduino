@@ -13,26 +13,36 @@ char    _vend_topic[NET_BASE_TOPIC_SIZE + NET_DEV_NAME_SIZE + 6]; // "<base topi
 EthernetClient _ethClient;
 PubSubClient *_client;
 char _mqttPayload [48];
+unsigned long time_last_connection_attempt=0;
+
 struct net_msg_t net_msg;
 
-extern unsigned long last_net_msg;
 extern char rfid_serial[21];
 extern char tran_id[10];
 extern cState card_state;
 extern byte allowVend;
 extern LiquidCrystal_I2C lcd;
+extern uint8_t _debug_level;
 
 
-void net_transport_init()
+static void checkMQTT(bool always_attempt_connection) 
 {
-  Ethernet.begin(_mac, _myip);
-  _client = new PubSubClient(_serverip, MQTT_PORT, net_transport_mqtt_callback, _ethClient);
-
-  // checkMQTT
   if (!_client->connected())
   {
+    // If disconnected, don't try to reconnect on every run. This is because if the remote server can't
+    // be reached, _client->connect() blocks for quite a while, making the serial menu annoying to use.
+    if (!always_attempt_connection && (millis() - time_last_connection_attempt < CONNECTION_RETRY_TIMEOUT))
+      return;
+    time_last_connection_attempt = millis();
+
+    if (_debug_level)
+      dbg_println(F("(Re)connecting to MQTT"));
+
     if (_client->connect(_dev_name))
     {
+      if (_debug_level)
+        dbg_println(F("Connected to MQTT"));
+
       sprintf(_mqttPayload, "Restart: %s", _dev_name);
       _client->publish(P_STATUS, _mqttPayload);
       _client->subscribe(S_STATUS);
@@ -43,15 +53,25 @@ void net_transport_init()
       sprintf(_vend_topic, "%s%s/rx", _base_topic, _dev_name);
     }
   }
+} // end checkMQTT()
+
+
+void net_transport_init()
+{
+  Ethernet.begin(_mac, _myip);
+  _client = new PubSubClient(_serverip, MQTT_PORT, net_transport_mqtt_callback, _ethClient);
+
+  checkMQTT(true);
 }
 
 void net_transport_loop()
 {
   _client->loop();
+  checkMQTT(false);
 }
 
 // Process incoming messages from mqtt
-void net_transport_mqtt_callback(char* topic, byte* payload, unsigned int length) 
+void net_transport_mqtt_callback(char* topic, byte* payload, unsigned int length)
 {
   // handle message that arrived
   if (!strncmp(S_STATUS, topic, sizeof(S_STATUS)-1))
@@ -63,7 +83,6 @@ void net_transport_mqtt_callback(char* topic, byte* payload, unsigned int length
       _client->publish(P_STATUS, _mqttPayload);
     }
   }
-
   else
   {
     // "normal" message
@@ -79,15 +98,12 @@ void net_transport_mqtt_callback(char* topic, byte* payload, unsigned int length
         copy_len = sizeof(net_msg.payload)-1;
       memcpy(net_msg.payload, payload + 5, copy_len);
 
-      last_net_msg = millis();
-
       net_rx_message(&net_msg, rfid_serial, sizeof(rfid_serial), tran_id, sizeof(tran_id), &card_state, &allowVend, &lcd);
     }
   }
 
   payload[0]='\0';
 }
-
 
 void net_transport_send(struct net_msg_t *msg)
 {
@@ -100,4 +116,7 @@ void net_transport_send(struct net_msg_t *msg)
    dbg_println(_mqttPayload);
 }
 
-
+boolean net_transport_connected()
+{
+  return _client->connected();
+}

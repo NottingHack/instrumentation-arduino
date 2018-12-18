@@ -100,8 +100,6 @@ char vendAmountA; // amount (scaled) that is being requested.
 char vendAmountB; // amount (scaled) that is being requested.
 byte cancel_vend; // Cancel button pressed
 
-
-void do_ping();
 byte checkVend(struct MDB_Byte* data) ;
 void MDB_vend();
 void MDB_reader();
@@ -126,9 +124,6 @@ uint8_t _debug_level = 0;
 
 byte rf_count;
 LiquidCrystal_I2C lcd(LCD_I2C_ADDRESS,LCD_WIDTH,2);
-
-unsigned long last_net_msg;
-unsigned long last_ping;
 
 const char lcd_msg1[] PROGMEM = "Ready...";
 
@@ -215,8 +210,6 @@ void setup()
 //  wdt_reset ();
   dbg_init();
   delay(4000);
-  last_net_msg = millis(); // prevent instant timeout
-  last_ping = millis();
 
   serial_menu_init(); // Also reads in network config from EEPROM
   net_transport_init();
@@ -718,33 +711,39 @@ void MDB_vend()
   } 
 }
 
-void loop() 
+void loop()
 {
-
   byte readcard = 0;
   bool flush_buffer = false;
   unsigned long time_card_read=0;
   bool net_timeout = false;
   bool just_polled = false;
-  
+  bool connected = false;
  
   while (1)
   {
+    serial_menu();
     net_transport_loop();
-    if ((millis() - last_net_msg) < NET_RESET_TIMEOUT)
+
+    if (!net_transport_connected())
     {
-      net_timeout = false;
-     // wdt_reset();
-    }
-    else
-    {
-      if (!net_timeout)
+      if (connected)
       {
-        net_timeout = true;
-        if (_debug_level) dbg_println(F("Net timeout"));
+        connected = false;
+        dbg_println(F("Disconnected!"));
+        lcd.clear();
+        lcd.print(F("Disconnected!"));
       }
+      // With no connection, there is no point continuing
+      continue;
     }
-    
+
+    if (!connected)
+    {
+      connected = true;
+      lcd.clear();
+    }
+
     if (mdb_serial_data_available())
     {
       mdb_serial_get_byte(&recvData[0]);
@@ -830,38 +829,37 @@ void loop()
         time_card_read = millis();
       }
     }
-  }    
-    
-    if (time_card_read && ((millis() - time_card_read) > SESSION_TIMEOUT))
-    {
-      dbg_println(F("Session timeout"));
-      cancel_pressed();
-      time_card_read = 0; 
-    }
-    net_transport_loop();
+  }
 
-    // Do we have an RFID serial in memory?
-    if (rfid_serial[0] == 0)
-      digitalWrite(LED_CARD, HIGH); // inverse logic for inbuilt nanode led
-    else
-      digitalWrite(LED_CARD, LOW);
+  if (time_card_read && ((millis() - time_card_read) > SESSION_TIMEOUT))
+  {
+    dbg_println(F("Session timeout"));
+    cancel_pressed();
+    time_card_read = 0; 
+  }
+  net_transport_loop();
 
-   // Return / Cancel button pushed?
-   if (digitalRead(RETURN_BUTTON) == HIGH)
+  // Do we have an RFID serial in memory?
+  if (rfid_serial[0] == 0)
+    digitalWrite(LED_CARD, HIGH); // inverse logic for inbuilt nanode led
+  else
+    digitalWrite(LED_CARD, LOW);
+
+ // Return / Cancel button pushed?
+ if (digitalRead(RETURN_BUTTON) == HIGH)
+ {
+   if (!ret_button)
    {
-     if (!ret_button)
-     {  
-       ret_button = true;
-       cancel_pressed();
-     }
+     ret_button = true;
+     cancel_pressed();
+   }
 
-   } else
+   }
+   else
    {
      ret_button = false;
    }
 
-   do_ping();
-   serial_menu();
   } // while(1)
 } // end void loop()
 
@@ -895,14 +893,3 @@ void cancel_pressed()
     if (_debug_level) dbg_println(F("Nothing to cancel"));
   }
 }
-
-void do_ping()
-{
-  if (((millis() - last_net_msg) > PING_INTERVAL) &&
-      ((millis() - last_ping)    > PING_INTERVAL))
-  {
-    last_ping = millis();
-    net_tx_ping();
-  }
-}
-

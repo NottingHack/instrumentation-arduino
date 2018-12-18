@@ -18,6 +18,7 @@ struct net_msg_t
 void net_transport_init();
 void net_transport_loop();
 void net_transport_send(struct net_msg_t *msg);
+boolean net_transport_connected();
 
 void net_transport_mqtt_callback(char* topic, byte* payload, unsigned int length) ;
 

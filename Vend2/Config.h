@@ -5,11 +5,9 @@
  * Nottingham Hackspace
  * CC-BY-SA
  *
- * Source = http://wiki.nottinghack.org.uk/wiki/...
- * Target controller = Arduino 328 (Nanode v5)
- * Clock speed = 16 MHz
- * Development platform = Arduino IDE 0022
- * C compiler = WinAVR from Arduino IDE 0022
+ * Source = https://wiki.nottinghack.org.uk/wiki/Vending_Machine/Cashless_Device_Implementation
+ * Target controller = SAM D21 / Arduino Zero
+ * Development platform = Arduino IDE 1.8.5
  * 
  * 
  * This code is distributed in the hope that it will be useful,
@@ -57,8 +55,7 @@ uint8_t const _default_mac[]        = {  0xDE, 0xED, 0xBA, 0xFE, 0xFE, 0x11 };
 #define STATUS_STRING "STATUS"
 
 // Maximum time between received network messages before resetting
-#define NET_RESET_TIMEOUT 48000 // (400 * 120)
-#define PING_INTERVAL (400 * 60)
+#define CONNECTION_RETRY_TIMEOUT 25000 // When disconnected, how often to try reconnecting (in ms)
 
 #define NET_BASE_TOPIC_SIZE 41
 #define NET_DEV_NAME_SIZE   21
