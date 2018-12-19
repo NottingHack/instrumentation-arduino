@@ -197,7 +197,6 @@ void read_inputs()
   uint8_t old_input = _input_state;
   Wire.requestFrom(PCF_BASE_ADDRESS | 3 , 1);
   _input_state = Wire.read();
-  Wire.endTransmission();
 
   // find out which input has changed if any
   // _input_state = new_input;
@@ -249,7 +248,6 @@ void publish_all_input_states()
 {
   Wire.requestFrom(PCF_BASE_ADDRESS | 3 , 1);
   _input_state = Wire.read();
-  Wire.endTransmission();
 
   for (int i = 0; i < 8; ++i) 
   {
@@ -492,6 +490,11 @@ void setup()
   Serial.println();
   serial_show_main_menu();
   wdt_enable(WDTO_8S);
+
+  // read and bin the input port expander to clear any old interrupt 
+  Wire.requestFrom(PCF_BASE_ADDRESS | 3 , 1);
+  Wire.read();
+
 } // end void setup()
 
 void input_int()
@@ -549,7 +552,7 @@ void loop()
   // Do serial menu
   serial_menu();
 
-  // Check if either the sign-off or induct buttons have been pushed
+  // Check if any buttons have been pushed
   check_buttons();
   
   lcd_loop();
@@ -613,6 +616,11 @@ void check_buttons()
       
       read_inputs();
     }
+  } else if ((millis() - _input_int_pushed_time) > 200 && (digitalRead(PIN_INPUT_INT) == LOW)) {
+    // its been a while and for some reason the interrupt is low and likely meaning we missed an interrupt 
+    _input_int_pushed = false;
+
+    read_inputs();
   }
 }
 
