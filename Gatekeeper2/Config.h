@@ -88,6 +88,9 @@
 // Port the MQTT broker is on
 #define MQTT_PORT 1883
 
+// Reset (allow WDT timeout) if not connected for this many milliseconds
+#define RESTART_TIMEOUT 30000 // 30sec
+
 #define BASE_TOPIC_LEN 10
 
 // Locations in EEPROM of various settings

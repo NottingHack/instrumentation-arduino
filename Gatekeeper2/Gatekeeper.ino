@@ -72,6 +72,9 @@ char _door_topic[20+BASE_TOPIC_LEN+10+4]; // name + _base_topic + action + delim
 unsigned long _door_unlocked_time = 0;
 char _door_state_topic[50]="";
 
+// set to millis() on first startup, and then everytime the connection is confirmed good 
+// If this is > RESTART_TIMEOUT away from the current time, don't reset the WDT.
+unsigned long _wdt_connected_timer = 0; 
 
 void setup()
 {
@@ -134,7 +137,9 @@ void setup()
 
   // Start MQTT and say we are alive
   dbg_println(F("Check MQTT"));
+  wdt_reset();
   checkMQTT();
+  wdt_reset();
 
   Serial.println();
   serial_show_main_menu();
@@ -147,13 +152,15 @@ void setup()
   pinMode(DOOR_SENSE, INPUT);
   digitalWrite(DOOR_SENSE, LOW);
   dbg_println(F("Setup done"));
+  _wdt_connected_timer = millis();
   
 } // end void setup()
 
 
 void loop()
 {
-  wdt_reset();
+  if (millis() - _wdt_connected_timer < RESTART_TIMEOUT)
+    wdt_reset();
 
   // Check for door beel button, rfid reads, etc
   door_side_loop(_SideA);
@@ -382,7 +389,12 @@ void checkMQTT()
 {
   static boolean first_connect = true;
 
-  if (!_client->connected())
+  if (_client->connected())
+  {
+    // already connected
+    _wdt_connected_timer = millis();
+  }
+  else
   {
     if (_client->connect(_dev_name, _door_state_topic, 0, 1, "UNKNOWN")) // on disconnection, set door state to unknown
     {
