@@ -34,7 +34,7 @@
  */
 
 #define VERSION_NUM 001
-#define VERSION_STRING F("WorkshopMQTT ver: 004")
+#define VERSION_STRING F("WorkshopMQTT ver: 005")
 
 // Uncomment for debug prints
 #define DEBUG_PRINT
@@ -55,7 +55,6 @@ void getTemps();
 void findSensors();
 void printAddress(DeviceAddress);
 void setupToggle();
-void doorButton();
 void pollDoorBell();
 
 EthernetClient ethClient;
@@ -98,16 +97,15 @@ void callbackMQTT(char* topic, byte* payload, unsigned int length)
     } // end if
   } else if (!strncmp(S_DOOR_BELL, topic, sizeof(S_DOOR_BELL)-1)) 
   {
-    // check for door state messages
-    if (strncmp(DOOR_INNER, (char*)payload, strlen(DOOR_INNER)) == 0) 
-    {
-      Serial.println(F("Doorbell: inner"));
-      doorButtonState = DOOR_STATE_INNER;
-    } else if (strncmp(DOOR_OUTER, (char*)payload, strlen(DOOR_OUTER)) == 0) 
-    {
-      Serial.println(F("Doorbell: outer"));      
-      doorButtonState = DOOR_STATE_OUTER;
-    } // end if
+    char paybuf[2];
+    paybuf[1] = '\0';
+
+    if (length >= 1)
+      paybuf[0] = payload[0];
+    else
+      paybuf[0] = '1';
+
+    doorButtonState = atoi(paybuf);
   } // end if else
   
   payload[0]='\0';
@@ -337,22 +335,27 @@ void printAddress(DeviceAddress deviceAddress)
   }
 } // end void printAddress()
 
-
-/**************************************************** 
- * Interrupt method for door bell button
- * time out stop button being pushhed to often
- * arduino timers dont run inside interrupt's so 
- * millis() will return same value and delay() wont work
- *  
- ****************************************************/
-void doorButton()
+void ringBell(uint8_t rings)
 {
-  if((millis() - doorTimeOut) > DOOR_BUTTON_TIMEOUT) {
-      // reset time out
-      doorTimeOut = millis();
-      doorButtonState = DOOR_STATE_REAR;
-  } // end if
-} // end void doorButton()
+  if (rings == 0)
+    rings = 1;
+  if (rings > 5)
+    rings = 5;
+
+  Serial.print("Ring bell - ");
+  Serial.println(rings);
+
+  for (uint8_t i = 0; i < rings; i++)
+  {
+    if (i)
+      delay(DOOR_BELL_LENGTH/rings);
+    digitalWrite(DOOR_BELL, HIGH);
+    delay(DOOR_BELL_LENGTH/rings);
+    digitalWrite(DOOR_BELL, LOW);
+  }
+}
+
+
 
 /**************************************************** 
  * Has the door bell button been pressed
@@ -361,45 +364,11 @@ void doorButton()
  ****************************************************/
 void pollDoorBell() 
 {
-  if(doorButtonState == DOOR_STATE_INNER) 
+  if (doorButtonState != 0) 
   {
-    // clear state 
-    doorButtonState = DOOR_STATE_NONE;
-
-    digitalWrite(DOOR_BELL, HIGH);
-    delay(DOOR_BELL_LENGTH);
-    digitalWrite(DOOR_BELL, LOW);
-
-  } else if(doorButtonState == DOOR_STATE_OUTER) 
-  {
-    // clear state
-    doorButtonState = DOOR_STATE_NONE;
-
-    digitalWrite(DOOR_BELL, HIGH);
-    delay(DOOR_BELL_LENGTH/2);
-    digitalWrite(DOOR_BELL, LOW);
-    delay(DOOR_BELL_LENGTH/2);
-    digitalWrite(DOOR_BELL, HIGH);
-    delay(DOOR_BELL_LENGTH/2);
-    digitalWrite(DOOR_BELL, LOW);
-  } else if(doorButtonState == DOOR_STATE_REAR)
-  {
-    // clear state
-    doorButtonState = DOOR_STATE_NONE;
-    client.publish(P_DOOR_BUTTON, DOOR_REAR);
-
-    digitalWrite(DOOR_BELL, HIGH);
-    delay(DOOR_BELL_LENGTH/4);
-    digitalWrite(DOOR_BELL, LOW);
-    delay(DOOR_BELL_LENGTH/4);
-    digitalWrite(DOOR_BELL, HIGH);
-    delay(DOOR_BELL_LENGTH/4);
-    digitalWrite(DOOR_BELL, LOW);
-    delay(DOOR_BELL_LENGTH/4);
-    digitalWrite(DOOR_BELL, HIGH);
-    delay(DOOR_BELL_LENGTH/4);
-    digitalWrite(DOOR_BELL, LOW);
-  } // end if
+    ringBell(doorButtonState);
+    doorButtonState = 0;
+  }
 } // end void pollDoorBell()
 
 void setup()
@@ -412,8 +381,6 @@ void setup()
   Ethernet.begin(mac, ip);
   
   // Setup Pins
-  pinMode(DOOR_BUTTON, INPUT);
-  digitalWrite(DOOR_BUTTON, HIGH);
   pinMode(DOOR_BELL, OUTPUT);
   digitalWrite(DOOR_BELL, LOW);
   
@@ -427,7 +394,6 @@ void setup()
   // let everything else settle
   delay(100);
   
-  attachInterrupt(1, doorButton, LOW);
 } // end void setup()
 
 
