@@ -33,27 +33,13 @@ byte ip[]     = { 192, 168, 0, 19 };
 // Volt Free switching
 // ***LWK*** use pin 10 for nanode v5 or pin 8 for wiznet, dont forget to move soldered line on the proto sheild (needs a jumper)
 #define DOOR_BELL 8
-#define DOOR_BELL_LENGTH 400
+#define DOOR_BELL_LENGTH 1000
 
 #define LDR_PIN A5
 #define LDR_TIMEOUT 150000
 
-// Door Bell Button
-// HIGH = PUSHED
-// Interrupt PIN
-#define DOOR_BUTTON 3
-// timeout in mills for how often the doorbell can be rang
-#define DOOR_BUTTON_TIMEOUT 2000
 unsigned long doorTimeOut = 0;
 boolean doorButtonState = 0;
-
-#define DOOR_STATE_NONE 0
-#define DOOR_STATE_INNER 1
-#define DOOR_STATE_OUTER 2
-#define DOOR_STATE_REAR 3
-#define DOOR_INNER "1"
-#define DOOR_OUTER "2"
-#define DOOR_REAR "3"
 
 // MQTT 
 
@@ -71,7 +57,6 @@ byte server[] = { 192, 168, 0, 1 };
 #define S_DOOR_BELL    "nh/gk/bell/Workshop"
 
 // Publish Topics
-#define P_DOOR_BUTTON           "nh/gk/3/DoorButton"
 #define P_LIGHT_LEVEL           "nh/lightlevel/workshop"
 
 // Status Topic, use to say we are alive or DEAD (will)

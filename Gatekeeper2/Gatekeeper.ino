@@ -68,15 +68,20 @@ door_relay_state_t _door_relay_state;
 char _pmsg[DMSG];
 bool _door_contact_state;
 unsigned long _door_contact_change_time;
-char _door_topic[20+40+10+4]; // name + _base_topic + action + delimiters + terminator e.g. "nh/gk/1/"
+char _door_topic[20+BASE_TOPIC_LEN+10+4]; // name + _base_topic + action + delimiters + terminator e.g. "nh/gk/1/"
 unsigned long _door_unlocked_time = 0;
 char _door_state_topic[50]="";
 
+// set to millis() on first startup, and then everytime the connection is confirmed good 
+// If this is > RESTART_TIMEOUT away from the current time, don't reset the WDT.
+unsigned long _wdt_connected_timer = 0; 
 
 void setup()
 {
+  char *rfid_serial;
   wdt_reset();
-  
+  wdt_enable(WDTO_8S);
+
   // for I2C port expander
   Wire.begin();
 
@@ -99,10 +104,14 @@ void setup()
   for (int i = 0; i < 4; i++)
     _server[i] = EEPROM.read(EEPROM_SERVER_IP+i);
 
-  for (int i = 0; i < 40; i++)
+  for (int i = 0; i < BASE_TOPIC_LEN-1; i++)
     _base_topic[i] = EEPROM.read(EEPROM_BASE_TOPIC+i);
-  _base_topic[40] = '\0';
+  _base_topic[BASE_TOPIC_LEN-1] = '\0';
 
+  for (int i = 0; i < 21; i++)
+    _rfid_override[i] = EEPROM.read(EEPROM_EMGCY_RFID+i);
+  _rfid_override[EEPROM_EMGCY_RFID-1] = '\0';
+ 
   _door_id = EEPROM.read(EEPROM_DOOR_ID);
 
   sprintf(_dev_name,         "Gatekeeper-%d", _door_id);
@@ -114,18 +123,26 @@ void setup()
   _SideA->init();
   _SideB->init();
 
+  // Check if the RFID in EEPROM is already present - if so, unlock door before starting network
+  rfid_serial = _SideA->poll_rfid();
+  check_for_override_rfid(rfid_serial);
+  rfid_serial = _SideB->poll_rfid();
+  check_for_override_rfid(rfid_serial);
+
   dbg_println(F("Start Ethernet"));
   Ethernet.begin(_mac, _ip);
 
+  _ethClient.setTimeout(2);
   _client = new PubSubClient(_server, MQTT_PORT, callbackMQTT, _ethClient);
 
   // Start MQTT and say we are alive
   dbg_println(F("Check MQTT"));
+  wdt_reset();
   checkMQTT();
+  wdt_reset();
 
   Serial.println();
   serial_show_main_menu();
-  wdt_enable(WDTO_8S);
 
   pinMode(DOOR_CONTACT, INPUT);
   digitalWrite(DOOR_CONTACT, LOW);
@@ -134,13 +151,20 @@ void setup()
   
   pinMode(DOOR_SENSE, INPUT);
   digitalWrite(DOOR_SENSE, LOW);
+  dbg_println(F("Setup done"));
+  _wdt_connected_timer = millis();
   
 } // end void setup()
 
 
 void loop()
 {
-  wdt_reset();
+  if (millis() - _wdt_connected_timer < RESTART_TIMEOUT)
+    wdt_reset();
+
+  // Check for door beel button, rfid reads, etc
+  door_side_loop(_SideA);
+  door_side_loop(_SideB);
 
   // should cause callback if there's a new message
   _client->loop();
@@ -154,16 +178,11 @@ void loop()
   // Check if door needs locking again
   check_door_relay();
 
-  // Check for door beel button, rfid reads, etc
-  door_side_loop(_SideA);
-  door_side_loop(_SideB);
-
   //timeout_loop();
   check_door();
 
   // If the door has changed state, send an update
   update_door_state();
-  
 } // end void loop()
 
 
@@ -189,9 +208,20 @@ void poll_rfid(DoorSide *side)
   rfid_serial = side->poll_rfid();
   if (rfid_serial != NULL)
   {
-    // char rfid_serial_str[10];
-    // ultoa(rfid_serial, rfid_serial_str, sizeof(rfid_serial_str));
+    check_for_override_rfid(rfid_serial);
     send_door_side_msg(side->get_side(), "RFID", rfid_serial);
+  }
+}
+
+void check_for_override_rfid(char *rfid_serial)
+{
+  if (rfid_serial != NULL)
+  {
+    if (!strncmp(_rfid_override, rfid_serial, 20))
+    {
+      dbg_println(F("RFID override serial seen")); 
+      unlock_door();
+    }
   }
 }
 
@@ -359,7 +389,12 @@ void checkMQTT()
 {
   static boolean first_connect = true;
 
-  if (!_client->connected())
+  if (_client->connected())
+  {
+    // already connected
+    _wdt_connected_timer = millis();
+  }
+  else
   {
     if (_client->connect(_dev_name, _door_state_topic, 0, 1, "UNKNOWN")) // on disconnection, set door state to unknown
     {
@@ -413,7 +448,8 @@ void callbackMQTT(char* topic, byte* payload, unsigned int length)
 {
   char buf [30];
   char *pTopic;
-
+  
+  
   // Respond to status requests
   if (!strcmp(topic, S_STATUS))
   {
@@ -422,6 +458,7 @@ void callbackMQTT(char* topic, byte* payload, unsigned int length)
       dbg_println(F("Status Request"));
       sprintf(buf, "Running: %s", _dev_name);
       _client->publish(P_STATUS, buf);
+      return;
     }
   }
 
@@ -557,11 +594,19 @@ void lock_door()
 {
   // config.h can be used to set if a high or low on the relay pin should lock the door
   if (DOOR_RELAY_LOCKED)
+  {
     port_expander_write(PORT_EXPANDER_RELAY, true);  // Set bit to lock door
+    
+    // Temp bodge: pin0 on the gk-4 (CNCCORIDOR) board doesn't seem to work. There is now a wire link between pin 0 and pin 1. Remove when gk-4 is fixed.
+    port_expander_write(1, true);
+  }
   else
+  {
     port_expander_write(PORT_EXPANDER_RELAY, false); // clear bit to lock door
+    port_expander_write(1, false); 
+  }
 
-  dbg_println(F("Door locked"));
+  dbg_println(F("Door locked")); 
   _door_relay_state = DR_LOCKED;
   return;
 }
@@ -570,10 +615,16 @@ void unlock_door()
 {
   // config.h can be used to set if a high or low on the relay pin should unlock the door
   if (DOOR_RELAY_LOCKED)
+  {
     port_expander_write(PORT_EXPANDER_RELAY, false); // clear bit to unlock door
+    port_expander_write(1, false); // bodge for gk-4
+  }
   else
+  {
     port_expander_write(PORT_EXPANDER_RELAY, true);  // set bit to unlock door
-
+    port_expander_write(1, true); // bodge for gk-4
+  }
+  
   dbg_println(F("Door unlocked"));
   _door_relay_state = DR_UNLOCKED;
   _door_unlocked_time = millis();

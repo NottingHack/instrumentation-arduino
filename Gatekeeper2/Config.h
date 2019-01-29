@@ -40,7 +40,7 @@
 
 /* Door side b (inside) */
 #define SIDEB_LCD_ADDR        0x3F
-#define SIDEB_DOORBELL_BUTTON 4
+#define SIDEB_DOORBELL_BUTTON 0xFF
 #define SIDEB_BUZZER          A3
 #define SIDEB_RFID_SS         8
 #define SIDEB_RFID_RST        6
@@ -50,8 +50,8 @@
 #define DOOR_CONTACT          A0
 #define DOOR_SENSE            A1
 
-#define DOOR_SENSE_SECURE     0
-#define DOOR_SENSE_UNSECURE   1
+#define DOOR_SENSE_SECURE     1
+#define DOOR_SENSE_UNSECURE   0
 
 #define PORT_EXPANDER_ADDR    0x38
 #define PORT_EXPANDER_RELAY   0    // Bit/port position relay is on (0-7)
@@ -88,12 +88,20 @@
 // Port the MQTT broker is on
 #define MQTT_PORT 1883
 
+// Reset (allow WDT timeout) if not connected for this many milliseconds
+#define RESTART_TIMEOUT 30000 // 30sec
+
+#define BASE_TOPIC_LEN 10
+
 // Locations in EEPROM of various settings
 #define EEPROM_MAC           0 //  6 bytes
 #define EEPROM_IP            6 //  4 bytes 
-#define EEPROM_BASE_TOPIC   10 // 40 bytes   e.g. "nh/gk"
+#define EEPROM_BASE_TOPIC   10 // 10 bytes   e.g. "nh/gk"
+                               // 30 bytes now unused
 #define EEPROM_DOOR_ID      50 //  1 byte
 #define EEPROM_SERVER_IP    51 //  4 bytes
+#define EEPROM_EMGCY_RFID   55 // 21 bytes
+
 
 // Status Topic
 #define S_STATUS "nh/status/req"
@@ -116,7 +124,8 @@ enum serial_state_t
   SS_SET_IP,
   SS_SET_DOOR_ID,
   SS_SET_TOPIC,
-  SS_SET_SERVER_IP
+  SS_SET_SERVER_IP,
+  SS_SET_EMGCY_RFID
 };
 
 enum door_relay_state_t

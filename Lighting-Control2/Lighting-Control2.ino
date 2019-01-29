@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014, Daniel Swann <hs@dswann.co.uk>
+ * Copyright (c) 20148, Daniel Swann <hs@dswann.co.uk>, Matt Lloyd <dps.lwk@gmail.com>
  * All rights reserved.
  * 
  * Redistribution and use in source and binary forms, with or without
@@ -28,13 +28,11 @@
  */
 
 
-/* Arduino tool access control for Nottingham Hackspace
+/* Arduino automated lighting control for Nottingham Hackspace
  *
  * Target board = Arduino Uno, Arduino version = 1.0.1
  *
  * Expects to be connected to:
- *   - I2C 16x2 LCD (HCARDU0023)) - OPTIONAL
- *   - SPI RFID reader (HCMODU0016)
  *   - Wiznet W5100 based Ethernet shield
  * Pin assignments are in Config.h
  *
@@ -42,8 +40,6 @@
  *
  * Additional required libraries:
  *   - PubSubClient                       - https://github.com/knolleary/pubsubclient
- *   - HCARDU0023_LiquidCrystal_I2C_V2_1  - http://forum.hobbycomponents.com/viewtopic.php?f=39&t=1125
- *   - rfid                               - https://github.com/miguelbalboa/rfid
  */
 
 #include <Wire.h>
@@ -73,6 +69,7 @@ volatile unsigned long _input_int_pushed_time;
 char tool_topic[20+40+10+4]; // name + _base_topic + action + delimiters + terminator
 unsigned long _last_state_change = 0;
 uint8_t _input_state = 0;
+uint8_t _input_state_tracking = 0;
 uint32_t _output_state = 0x00000000;
 uint32_t _output_retained = 0xFF000000;
 
@@ -96,7 +93,7 @@ void callbackMQTT(char* topic, byte* payload, unsigned int length)
     }
   }    
 
-  // Messages to the tools topic
+  // Messages to the lighting topics
   // nh/li/LightsCNC/{channel}/set      deal with this
   // nh/li/LightsCNC/{channel}/state    only care if its first one for this channel (the retained state)
   // nh/li/LightsCNC                    dont care
@@ -200,7 +197,6 @@ void read_inputs()
   uint8_t old_input = _input_state;
   Wire.requestFrom(PCF_BASE_ADDRESS | 3 , 1);
   _input_state = Wire.read();
-  Wire.endTransmission();
 
   // find out which input has changed if any
   // _input_state = new_input;
@@ -215,22 +211,34 @@ void read_inputs()
       {
         if ((_input_enables & (1<<i)) == 0) 
         {
+          uint32_t _override_state = _override_states[i];
+          // if we are tracking the state of this input pin is enabled (low == enabled)
+          // amd this the second press 
+          if (((_input_statefullness & (1<<i)) == 0) && ((_input_state_tracking & (1<<i)) != 0))
+          {
+            // flip the output state requests
+            _override_state = ~_override_state;
+          }
+
           for (uint32_t chan = 0; chan < 24; ++chan)
           {
             uint32_t chanMask = 1UL<<chan;
             if (_override_masks[i] & chanMask) {
-              if (_override_states[i] & chanMask) {
+              if (_override_state & chanMask) {
                 _output_state |= chanMask;
               } else {
                 _output_state &= ~chanMask;
               }
               update_outputs(chan);
               char channel[3];
-              sprintf(channel, "%0.2u", chan);
+              sprintf(channel, "%02lu", chan);
               publish_output_state(channel);
             }
           }
         }
+
+        // toggle tracking state bit for this input pin
+        _input_state_tracking ^= 1 << i;
       }
     }
   }
@@ -240,7 +248,6 @@ void publish_all_input_states()
 {
   Wire.requestFrom(PCF_BASE_ADDRESS | 3 , 1);
   _input_state = Wire.read();
-  Wire.endTransmission();
 
   for (int i = 0; i < 8; ++i) 
   {
@@ -448,6 +455,8 @@ void setup()
     for (int j = 0; j < 3; j++)
       _override_states[i] |= (uint32_t)EEPROM.read(EEPROM_OVERRIDE_STATES+(i*3)+j) << (j*8);
 
+  _input_statefullness = EEPROM.read(EEPROM_INPUT_STATEFULL);
+
   sprintf(tool_topic, "%s/%s", _base_topic, _dev_name);
 
   dbg_println(F("Init LCD"));
@@ -470,7 +479,7 @@ void setup()
   _input_int_pushed = false;
   _input_int_pushed_time = 0;
 
-  attachInterrupt(0, input_int, FALLING); // int0 = PIN_SIGNOFF_BUTTON
+  attachInterrupt(0, input_int, FALLING); // int0 = PIN_INPUT_INT
   
   delay(100);
 
@@ -481,6 +490,11 @@ void setup()
   Serial.println();
   serial_show_main_menu();
   wdt_enable(WDTO_8S);
+
+  // read and bin the input port expander to clear any old interrupt 
+  Wire.requestFrom(PCF_BASE_ADDRESS | 3 , 1);
+  Wire.read();
+
 } // end void setup()
 
 void input_int()
@@ -538,7 +552,7 @@ void loop()
   // Do serial menu
   serial_menu();
 
-  // Check if either the sign-off or induct buttons have been pushed
+  // Check if any buttons have been pushed
   check_buttons();
   
   lcd_loop();
@@ -602,6 +616,11 @@ void check_buttons()
       
       read_inputs();
     }
+  } else if ((millis() - _input_int_pushed_time) > 200 && (digitalRead(PIN_INPUT_INT) == LOW)) {
+    // its been a while and for some reason the interrupt is low and likely meaning we missed an interrupt 
+    _input_int_pushed = false;
+
+    read_inputs();
   }
 }
 

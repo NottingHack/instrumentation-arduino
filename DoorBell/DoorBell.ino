@@ -1,6 +1,6 @@
 
 /**************************************************** 
- * sketch = WorkshopMQTT
+ * sketch = DoorBell
  *
  * Nottingham Hackspace
  * CC-BY-SA
@@ -8,8 +8,7 @@
  * Source = http://wiki.nottinghack.org.uk/wiki/...
  * Target controller = Arduino 328
  * Clock speed = 16 MHz
- * Development platform = Arduino IDE 1.0.3
- * C compiler = WinAVR from Arduino IDE 1.0.3
+ * Development platform = Arduino IDE 1.0.5
  * 
  * 
  * This code is distributed in the hope that it will be useful,
@@ -20,21 +19,10 @@
 
 /*  
  History
-    000 - Started 17/03/2013
-    001 - Initial release done for arduino 0022 and pubsub client 1.6!!!
-    002 - Update for pubsub 1.9 / Arduino 1.0.3 (29/03/2013)
-    004 - Update in line with Gatekeeper changes for multiple doors
- 
- Known issues:
-
-  
- Authors:
- 'RepRap' Matt      dps.lwk at gmail.com
+    000 - Started 06/10/2018, based on WorkshopMQTT. Static/hardcoded config for
+          now, maybe serial menu based config if another is needed.
  
  */
-
-#define VERSION_NUM 001
-#define VERSION_STRING F("WorkshopMQTT ver: 005")
 
 // Uncomment for debug prints
 #define DEBUG_PRINT
@@ -54,11 +42,9 @@ uint8_t bufferFloat(double, uint8_t, uint8_t);
 void getTemps();
 void findSensors();
 void printAddress(DeviceAddress);
-void setupToggle();
 void pollDoorBell();
 
 EthernetClient ethClient;
-// compile on holly needs this after callbackMQTT
 PubSubClient client(server, MQTT_PORT, callbackMQTT, ethClient);
 
 char pmsg[DMSG];
@@ -74,8 +60,6 @@ int numberOfDevices;
 // array to store found address
 DeviceAddress tempAddress[10]; 
 
-//  LDR reading
-int lightSensorValue = 0;  
 
 /**************************************************** 
  * callbackMQTT
@@ -99,14 +83,14 @@ void callbackMQTT(char* topic, byte* payload, unsigned int length)
   {
     char paybuf[2];
     paybuf[1] = '\0';
-
+    
     if (length >= 1)
       paybuf[0] = payload[0];
     else
-      paybuf[0] = '1';
-
+      paybuf[1] = '1';
+    
     doorButtonState = atoi(paybuf);
-  } // end if else
+  }
   
   payload[0]='\0';
 } // end void callback(char* topic, byte* payload,int length)
@@ -121,9 +105,9 @@ void checkMQTT() {
     if (client.connect(CLIENT_ID)) {
       client.publish(P_STATUS, RESTART);
       client.subscribe(S_DOOR_BELL);
-      client.subscribe(S_STATUS);      
+      client.subscribe(S_STATUS);
 #ifdef DEBUG_PRINT
-      Serial.println(F("MQTT Reconect"));
+      Serial.println(F("MQTT Reconnect"));
 #endif
     } // end if
   } // end if
@@ -241,40 +225,6 @@ void getTemps()
 } // end void getTemps()
 
 
-
-/**************************************************** 
- getLightLevel
- Get light level and publish to MQTT. Publishes 
- regularly, and on sudden change
- ****************************************************/
-void getLightLevel()
-{
-  int new_val = analogRead(LDR_PIN); 
-  char msg[10]="";
-  
-  if (
-       ((millis() - lightTimeout) > LDR_TIMEOUT)  ||  // Timeout expired, or..
-       (abs(new_val-lightSensorValue) > 100)          // sudden change in light level
-     )
-  {
-    lightTimeout = millis();
-    itoa(new_val, msg, 10);
-    
-#ifdef DEBUG_PRINT
-    Serial.print(F("Light Level sent: "));
-    Serial.println(new_val);
-#endif   
-    
-    // publish light level
-    client.publish(P_LIGHT_LEVEL, msg);
-    lightSensorValue = new_val;
-  }
-  
-
-  
-} // end void getLightLevel()
-
-
 void findSensors() 
 {
   // locate devices on the bus
@@ -349,13 +299,11 @@ void ringBell(uint8_t rings)
   {
     if (i)
       delay(DOOR_BELL_LENGTH/rings);
-    digitalWrite(DOOR_BELL, HIGH);
+    analogWrite(DOOR_BELL, DOOR_BELL_VOLUME);
     delay(DOOR_BELL_LENGTH/rings);
-    digitalWrite(DOOR_BELL, LOW);
+    analogWrite(DOOR_BELL, 0);
   }
 }
-
-
 
 /**************************************************** 
  * Has the door bell button been pressed
@@ -375,11 +323,12 @@ void setup()
 {
   // Start Serial
   Serial.begin(9600);
-  Serial.println(VERSION_STRING);
-  
+  Serial.print("FW ver: ");
+  Serial.println(BUILD_IDENT);
+
   // Start ethernet
   Ethernet.begin(mac, ip);
-  
+
   // Setup Pins
   pinMode(DOOR_BELL, OUTPUT);
   digitalWrite(DOOR_BELL, LOW);
@@ -387,35 +336,33 @@ void setup()
   // start the one wire bus and dallas stuff
   dallas.begin();
   findSensors();
-    
+
   // Start MQTT and say we are alive
-  checkMQTT();   
-  
+  checkMQTT();
+
   // let everything else settle
   delay(100);
-  
+  Serial.println("Setup done");
+
 } // end void setup()
 
 
 void loop()
-{    
+{
   // Poll MQTT
   // should cause callback if theres a new message
   client.loop();
-  
+
   // Get Latest Temps
   getTemps();
-  
+
   // Poll Door Bell
   // has the button been press
   pollDoorBell();
-  
+
   // are we still connected to MQTT
   checkMQTT();
-  
-  // Get light level
-  getLightLevel();
-  
+
 } // end void loop()
 
 

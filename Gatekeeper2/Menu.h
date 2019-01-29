@@ -12,10 +12,10 @@ void serial_set_ip(char *cmd);
 void serial_set_server_ip(char *cmd);
 void serial_set_door_id(char *cmd);
 void serial_set_topic(char *cmd);
+void serial_set_rfid(char *cmd);
 void set_mac(byte *mac_addr);
 void set_ip(int *ip_addr);
 void set_server_ip(int *ip_addr);
 void set_door_id(byte new_door_id);
 void set_topic(char *new_topic);
-
-
+void set_rfid(char *rfid_serial);

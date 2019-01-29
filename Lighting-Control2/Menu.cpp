@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014, Daniel Swann <hs@dswann.co.uk>
+ * Copyright (c) 20148, Daniel Swann <hs@dswann.co.uk>, Matt Lloyd <dps.lwk@gmail.com>
  * All rights reserved.
  * 
  * Redistribution and use in source and binary forms, with or without
@@ -42,6 +42,7 @@ extern byte _server[4];
 extern uint8_t _input_enables;
 extern uint32_t _override_masks[8];
 extern uint32_t _override_states[8];
+extern uint8_t _input_statefullness;
 
 extern serial_state_t _serial_state;
 
@@ -51,6 +52,7 @@ enum serial_input_override_state_t
   ENABLE,
   MASK,
   STATES,
+  STATEFULL,
   DONE
 };
 serial_input_override_state_t _serial_input_override_state;
@@ -229,7 +231,9 @@ void serial_show_override_settings()
       Serial.print(F(" Mask: 0x"));
       Serial.print(_override_masks[i], HEX);
       Serial.print(F(" States: 0x"));
-      Serial.println(_override_states[i], HEX);
+      Serial.print(_override_states[i], HEX);
+      Serial.print(F(" Statefull: "));
+      Serial.println((_input_statefullness & (1<<i)) == 0);
     }
 
 }
@@ -518,6 +522,44 @@ bool serial_set_input_overide(char *cmd)
     
     set_override_states(_override_channel, states);
 
+    Serial.print(F("\nState tracking for channel "));
+    Serial.print(_override_channel);
+    Serial.print(F(" is currently "));
+    if ((_input_statefullness & (1<<_override_channel)) == 0) 
+    {
+      Serial.print(F("eabled"));
+    } 
+    else 
+    {
+      Serial.print(F("disabled"));
+    }
+
+    Serial.print(F("\n[y] to enable, [n] to diable? "));
+    _serial_input_override_state = STATEFULL;
+    return false;
+  }
+  else if (_serial_input_override_state == STATEFULL)
+  {
+    if (cmd[0] != 'y') {
+      // Disable state tracking for channel
+      set_input_statefullness(_override_channel, false);
+
+      Serial.print(F("\nState tracking for channel "));
+      Serial.print(_override_channel);
+      Serial.print(F(" Disabled"));
+      // Return to main menu
+      _serial_input_override_state = DONE;
+      _serial_state = SS_MAIN_MENU;
+      return true;
+    }
+
+    // enable state tracking for channel
+    set_input_statefullness(_override_channel, true);
+    
+    Serial.print(F("\nState tracking for channel "));
+    Serial.print(_override_channel);
+    Serial.print(F(" Enabled"));
+
     Serial.print(F("Channel updated"));
     // Return to main menu
     _serial_input_override_state = DONE;
@@ -589,6 +631,20 @@ void set_input_enables(int channel, bool enable)
   }
   EEPROM.write(EEPROM_INPUT_ENABLES, _input_enables);
 }
+
+void set_input_statefullness(int channel, bool enable)
+{
+  if (enable) 
+  {
+    _input_statefullness &= ~(1UL<<(channel));
+  }
+  else
+  {
+    _input_statefullness |= (1UL<<(channel));
+  }
+  EEPROM.write(EEPROM_INPUT_STATEFULL, _input_statefullness);
+}
+
 
 
 void set_override_masks(int channel, uint32_t mask)
