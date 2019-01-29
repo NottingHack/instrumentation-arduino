@@ -53,10 +53,10 @@ static uint8_t netbuf [NET_BUF_SIZE];
   
 enum {LINE_UPPER, LINE_LOWER};
 
-char msg_nhbanner[] PROGMEM = {"Nottinghack mini-matrix 0.01"}; 
-char msg_initnet[] PROGMEM = {"Init net..."}; 
-char msg_initonewire[] PROGMEM = {"Init one wire..."}; 
-char msg_boot[] PROGMEM = {"Mini-matrix boot!"};
+const char msg_nhbanner[] PROGMEM = {"Nottinghack mini-matrix 0.01"}; 
+const char msg_initnet[] PROGMEM = {"Init net..."}; 
+const char msg_initonewire[] PROGMEM = {"Init one wire..."}; 
+const char msg_boot[] PROGMEM = {"Mini-matrix boot!\n"};
 
 //byte sensor_addr[] PROGMEM = {0x28, 0xDA, 0xB8, 0xC2, 0x03, 0x00, 0x00, 0xBE};
 byte sensor_addr[8];
@@ -289,7 +289,7 @@ void get_mac()
 }
 
 
-void disp_progmem_msg(char *msg, int lineno)
+void disp_progmem_msg(const char *msg, int lineno)
 {
   int count = 0;
   byte b;
@@ -499,6 +499,8 @@ void loop()
 
   net_loop();
   one_wire_loop();
+  
+  
 }
 
 void set_message(int msgno, uint8_t *msg, int msglen)
@@ -546,6 +548,29 @@ void net_loop()
 
   if (plen) // 0 if no packet received
   {
+    // Look for gratuitous ARPs from the server
+    if (plen>=41 && netbuf[ETH_TYPE_H_P] == ETHTYPE_ARP_H_V && netbuf[ETH_TYPE_L_P] == ETHTYPE_ARP_L_V)
+    {
+      Serial.println F("got arp");   
+      uint8_t gotmac=1;
+  
+      // See of the IP matches the server we're supposed to be talking to
+      for (i=0; i < 4; i++)
+        if(netbuf[ETH_ARP_SRC_IP_P+i]!=dstip[i])
+          gotmac  = 0;
+      
+      // If it does, update the MAC address we saved on startup 
+      if (gotmac)
+      {
+        Serial.println F("dstmac updated"); 
+        // Save MAC
+        for (i=0; i < 6; i++)
+          dstmac[i] = netbuf[ETH_ARP_SRC_MAC_P + i];     
+        
+        return;      
+      }      
+    }    
+    
     dat_p=es.ES_packetloop_icmp_tcp(netbuf,plen);
 
     if (es.ES_eth_type_is_ip_and_my_ip(netbuf, plen)) // Is packet for us?
@@ -596,7 +621,7 @@ void net_loop()
   }
 }
 
-void udp_send_prgmem_msg(char *msg)
+void udp_send_prgmem_msg(const char *msg)
 {
   
   uint8_t *buffer;

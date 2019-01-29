@@ -38,7 +38,7 @@
 #define SYSTEM5x8_WIDTH 5
 #define SYSTEM5x8_HEIGHT 8
 
-static uint8_t System5x8[] PROGMEM = {
+static const uint8_t System5x8[] PROGMEM = {
 /*    0x0, 0x0, // size of zero indicates fixed width font, actual length is width * height
     0x05, // width
     0x08, // height
