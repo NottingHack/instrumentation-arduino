@@ -342,6 +342,12 @@ void checkMQTT()
     }
   }
 }
+void show_version()
+{
+  char build_ident[17]="";
+  snprintf(build_ident, sizeof(build_ident), "FW:%s", BUILD_IDENT);
+  lcd.print(build_ident);
+}
 
 void setup()
 {
@@ -353,10 +359,13 @@ void setup()
   dbg_println(F("Init LCD"));
   lcd.init();
   lcd.backlight();
+
   lcd.home();
   lcd.print(F("Nottinghack note    "));
   lcd.setCursor(0, 1);
   lcd.print(F("acceptor v0.01....  "));
+  lcd.setCursor(0, 3);
+  show_version();
 
   dbg_println(F("Init SPI"));
   SPI.begin();
@@ -379,11 +388,14 @@ void setup()
 
   while(nv4_loop());
 
+  pinMode(PIN_CANCEL_LIGHT, OUTPUT);
   pinMode(PIN_CANCEL_BUTTON, INPUT);
+  pinMode(PIN_DOOR_SENSE, INPUT);
   digitalWrite(PIN_CANCEL_BUTTON, HIGH);
-  
+  digitalWrite(PIN_DOOR_SENSE, HIGH);
+
   strcpy(status_msg, RUNNING);
-  
+
   dbg_println(F("Start Ethernet"));
   Ethernet.begin(mac, ip);
 
@@ -526,6 +538,29 @@ uint8_t set_state(state_t new_state)
   return 0;
 }
 
+void door_check()
+{
+  static bool previous_door_state = DOOR_STATE_CLOSED;
+  static unsigned long last_message_sent = 0;
+  static unsigned long last_door_state_change = 0;
+
+  uint8_t current_door_state = digitalRead(PIN_DOOR_SENSE);
+
+  if ((current_door_state != previous_door_state) && (millis()-last_door_state_change > DOOR_STATE_DEBOUNCE))
+  {
+    dbg_println(F("Door state change"));
+    last_door_state_change = millis();
+    previous_door_state = current_door_state;
+
+    // Only send a message if it's been > DOOR_STATE_MSG_INTERVAL ms since the last one was sent
+    if ((current_door_state == DOOR_STATE_OPEN) && (millis() - last_message_sent > DOOR_STATE_MSG_INTERVAL))
+    {
+      client.publish(P_NOTE_TX, "OPENED");
+      last_message_sent = DOOR_STATE_MSG_INTERVAL;
+    }
+  }
+}
+
 void loop()
 {
   // Poll MQTT
@@ -543,6 +578,9 @@ void loop()
 
   // Check for timeouts
   timeout_check();
+
+  // Check for door being opened
+  door_check();
 
   // Check for cancel button being pushed
   if ((state == STATE_ACCEPT) && (digitalRead(PIN_CANCEL_BUTTON) == LOW))
