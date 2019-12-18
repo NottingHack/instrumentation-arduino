@@ -33,6 +33,7 @@
 #define PIN_CANCEL_BUTTON 2
 #define PIN_CANCEL_LIGHT  3
 //      Ethernet          4
+#define PIN_DOOR_SENSE    5
 #define PIN_RFID_RST      6
 #define PIN_RFID_SS       7 // labeled SDA on RFID
 #define PIN_NOTE_TX       8
@@ -83,6 +84,11 @@ byte server[] = { 192, 168, 0, 1 };
 // Location in EEPROM of config
 #define EEPROM_JAMMED         0 //  1 bytes
 
+// Door states
+#define DOOR_STATE_OPEN   HIGH
+#define DOOR_STATE_CLOSED LOW
+#define DOOR_STATE_DEBOUNCE 50 // ms
+#define DOOR_STATE_MSG_INTERVAL 10000 // Minimum interval bettween "opened" messages sent to MQTT (ms)
 
 enum state_t
 {

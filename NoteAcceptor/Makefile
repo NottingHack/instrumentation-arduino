@@ -3,8 +3,12 @@
 
 BOARD_TAG    = uno
 ARDUINO_PORT = /dev/ttyACM0
-ARDUINO_LIBS = HCARDU0023_LiquidCrystal_I2C_V2_1 SoftwareSerial Wire SPI Ethernet PubSubClient MFRC522 EEPROM
-USER_LIB_PATH := $(realpath ../Libraries)
+ARDUINO_LIBS = LiquidCrystal_I2C SoftwareSerial Wire SPI Ethernet PubSubClient MFRC522 EEPROM
+USER_LIB_PATH := $(realpath ../libraries)
+
+# Embed a reference to the version in the binary
+BUILD_IDENT = $(shell git describe --always --dirty)
+CPPFLAGS += -D'BUILD_IDENT="$(BUILD_IDENT)"'
 
 include $(ARDMK_DIR)/Arduino.mk
 
