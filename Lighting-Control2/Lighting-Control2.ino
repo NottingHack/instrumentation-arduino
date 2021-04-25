@@ -1,10 +1,10 @@
 /*
  * Copyright (c) 20148, Daniel Swann <hs@dswann.co.uk>, Matt Lloyd <dps.lwk@gmail.com>
  * All rights reserved.
- * 
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
- * 
+ *
  * 1. Redistributions of source code must retain the above copyright notice,
  *    this list of conditions and the following disclaimer.
  * 2. Redistributions in binary form must reproduce the above copyright
@@ -13,7 +13,7 @@
  * 3. Neither the name of the owner nor the names of its
  *    contributors may be used to endorse or promote products derived from
  *    this software without specific prior written permission.
- * 
+ *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -48,12 +48,12 @@
 #include <Ethernet.h>
 #include <PubSubClient.h>
 #include <EEPROM.h>
-#include <avr/wdt.h> 
+#include <avr/wdt.h>
 #include "Config.h"
 #include "Lighting.h"
 #include "Menu.h"
 
-
+// #define BUILD_IDENT "IDE"
 #define LCD_WIDTH 16
 
 EthernetClient _ethClient;
@@ -73,7 +73,7 @@ uint8_t _input_state_tracking = 0;
 uint32_t _output_state = 0x00000000;
 uint32_t _output_retained = 0xFF000000;
 
-/**************************************************** 
+/****************************************************
  * callbackMQTT
  * called when we get a new MQTT
  * work out which topic was published to and handle as needed
@@ -81,17 +81,17 @@ uint32_t _output_retained = 0xFF000000;
 void callbackMQTT(char* topic, byte* payload, unsigned int length)
 {
   char buf [30];
-  
+
   // Respond to status requests
   if (!strcmp(topic, S_STATUS))
   {
     if (!strncmp(STATUS_STRING, (char*)payload, strlen(STATUS_STRING)))
     {
       dbg_println(F("Status Request"));
-      sprintf(buf, "Running: %s", _dev_name);      
+      sprintf(buf, "Running: %s", _dev_name);
       _client->publish(P_STATUS, buf);
     }
-  }    
+  }
 
   // Messages to the lighting topics
   // nh/li/LightsCNC/{channel}/set      deal with this
@@ -209,11 +209,11 @@ void read_inputs()
       // check input mapping and update outputs
       if (!(_input_state & ( 1 << i ))) // low == pressed
       {
-        if ((_input_enables & (1<<i)) == 0) 
+        if ((_input_enables & (1<<i)) == 0)
         {
           uint32_t _override_state = _override_states[i];
           // if we are tracking the state of this input pin is enabled (low == enabled)
-          // amd this the second press 
+          // amd this the second press
           if (((_input_statefullness & (1<<i)) == 0) && ((_input_state_tracking & (1<<i)) != 0))
           {
             // flip the output state requests
@@ -249,7 +249,7 @@ void publish_all_input_states()
   Wire.requestFrom(PCF_BASE_ADDRESS | 3 , 1);
   _input_state = Wire.read();
 
-  for (int i = 0; i < 8; ++i) 
+  for (int i = 0; i < 8; ++i)
   {
     boolean bit_state = (_input_state & ( 1 << i )) >> i;
     publish_input_state(i);
@@ -298,11 +298,11 @@ void lcd_display_mqtt(char *payload)
   char ln1[LCD_WIDTH+1];
   char ln2[LCD_WIDTH+1];
   char *payPtr, *lnPtr;
-  
+
   payPtr = (char*)payload;
 
   memset(ln1, 0, sizeof(ln1));
-  memset(ln2, 0, sizeof(ln2)); 
+  memset(ln2, 0, sizeof(ln2));
 
   /* Clear display */
   lcd.clear();
@@ -337,26 +337,26 @@ void lcd_display_mqtt(char *payload)
   lcd.clear();
   /* Output 1st line */
   lcd.setCursor(0, 0);
-  lcd.print(ln1); 
+  lcd.print(ln1);
 
   /* Output 2nd line */
   lcd.setCursor(0, 1);
   lcd.print(ln2);
 }
 
-/**************************************************** 
+/****************************************************
  * check we are still connected to MQTT
  * reconnect if needed
  *
  ****************************************************/
-void checkMQTT() 
-{  
+void checkMQTT()
+{
   char *pToolTopic;
   static boolean first_connect = true;
 
-  if (!_client->connected()) 
+  if (!_client->connected())
   {
-    if (_client->connect(_dev_name)) 
+    if (_client->connect(_dev_name))
     {
       char buf[30];
 
@@ -374,23 +374,23 @@ void checkMQTT()
       *pToolTopic = '\0';
 
       Serial.println(S_STATUS);
-      _client->subscribe(S_STATUS); 
+      _client->subscribe(S_STATUS);
 
       // Update state
       if (first_connect)
       {
         send_action("RESET", "BOOT");
-        first_connect = false;   
-        set_dev_state(DEV_IDLE);      
-        dbg_println("Boot->idle");  
-      } 
+        first_connect = false;
+        set_dev_state(DEV_IDLE);
+        dbg_println("Boot->idle");
+      }
       else
       {
         send_action("RESET", "IDLE");
         set_dev_state(DEV_IDLE);
-        dbg_println(F("Reset->idle")); 
+        dbg_println(F("Reset->idle"));
       }
-    } 
+    }
     else
     {
       // If state is ACTIVE, this won't have any effect
@@ -413,14 +413,14 @@ void setup()
   set_dev_state(DEV_NO_CONN);
 
   pinMode(PIN_LED0, OUTPUT);
-  pinMode(PIN_LED1  , OUTPUT);
-  pinMode(PIN_LED2, OUTPUT);   
-  pinMode(PIN_LED3, OUTPUT); 
+  pinMode(PIN_LED1, OUTPUT);
+  pinMode(PIN_LED2, OUTPUT);
+  pinMode(PIN_LED3, OUTPUT);
   pinMode(PIN_INPUT_INT, INPUT);
 
   digitalWrite(PIN_LED0, HIGH);
   digitalWrite(PIN_LED1, HIGH);
-  digitalWrite(PIN_LED2, HIGH); 
+  digitalWrite(PIN_LED2, HIGH);
   digitalWrite(PIN_LED3, HIGH);
   digitalWrite(PIN_INPUT_INT, HIGH);
 
@@ -446,7 +446,7 @@ void setup()
   _dev_name[20] = '\0';
 
   _input_enables = EEPROM.read(EEPROM_INPUT_ENABLES);
-  
+
   for (int i = 0; i < 8; i++)
     for (int j = 0; j < 3; j++)
       _override_masks[i] |= (uint32_t)EEPROM.read(EEPROM_OVERRIDE_MASKS+(i*3)+j) << (j*8);
@@ -469,7 +469,7 @@ void setup()
 
   dbg_println(F("Start Ethernet"));
   Ethernet.begin(_mac, _ip);
-  
+
   _client = new PubSubClient(_server, MQTT_PORT, callbackMQTT, _ethClient);
 
   // Start MQTT and say we are alive
@@ -480,7 +480,7 @@ void setup()
   _input_int_pushed_time = 0;
 
   attachInterrupt(0, input_int, FALLING); // int0 = PIN_INPUT_INT
-  
+
   delay(100);
 
   publish_all_input_states();
@@ -491,7 +491,7 @@ void setup()
   serial_show_main_menu();
   wdt_enable(WDTO_8S);
 
-  // read and bin the input port expander to clear any old interrupt 
+  // read and bin the input port expander to clear any old interrupt
   Wire.requestFrom(PCF_BASE_ADDRESS | 3 , 1);
   Wire.read();
 
@@ -507,7 +507,7 @@ void state_led_loop()
 {
   static unsigned long led_last_change = 0;
   static boolean led_on = false;
-  
+
   switch (_dev_state)
   {
     case DEV_NO_CONN:
@@ -527,7 +527,7 @@ void state_led_loop()
         }
       }
       break;
-      
+
     case DEV_IDLE:
       if (!led_on)
       {
@@ -554,11 +554,11 @@ void loop()
 
   // Check if any buttons have been pushed
   check_buttons();
-  
+
   lcd_loop();
-  
+
   state_led_loop();
-    
+
 } // end void loop()
 
 
@@ -583,7 +583,7 @@ boolean set_dev_state(dev_state_t new_state)
 
   case DEV_IDLE:
     // Any state can change to idle
-    
+
     first_boot = false;
     _dev_state =  DEV_IDLE;
     dbg_println(F("IDLE"));
@@ -596,7 +596,7 @@ boolean set_dev_state(dev_state_t new_state)
 
   if (ret)
     _last_state_change = millis();
-    
+
   return ret;
 }
 
@@ -613,11 +613,11 @@ void check_buttons()
     if (millis() - _input_int_pushed_time > 50)
     {
       _input_int_pushed = false;
-      
+
       read_inputs();
     }
   } else if ((millis() - _input_int_pushed_time) > 200 && (digitalRead(PIN_INPUT_INT) == LOW)) {
-    // its been a while and for some reason the interrupt is low and likely meaning we missed an interrupt 
+    // its been a while and for some reason the interrupt is low and likely meaning we missed an interrupt
     _input_int_pushed = false;
 
     read_inputs();
@@ -640,9 +640,9 @@ void lcd_display(const __FlashStringHelper *n, short line, boolean wipe_display)
   byte payload[LCD_WIDTH+1];
   char *pn = (char*)n;
   int count=0;
-    
+
   memset(payload, 0, sizeof(payload));
-  
+
   while (((c = pgm_read_byte_near(pn++)) != 0) && (count < sizeof(payload)))
     payload[count++] = c;
 
@@ -650,10 +650,10 @@ void lcd_display(const __FlashStringHelper *n, short line, boolean wipe_display)
 }
 
 void lcd_display(char *msg, short line, boolean wipe_display)
-{ 
+{
   if (wipe_display)
     lcd.clear();
-    
+
   lcd.setCursor(0, line);
 
   lcd.print(msg);
@@ -676,23 +676,18 @@ void dbg_println(const __FlashStringHelper *n)
   //  _client.publish(P_NOTE_TX, _pmsg);
 #endif
 
-
   Serial.println(_pmsg+sizeof("INFO"));
-
 }
 
 void dbg_println(const char *msg)
 {/*
   byte *payload;
- 
+
  memset(_pmsg, 0, sizeof(_pmsg));
  strcpy(_pmsg, "INFO:");
  strcat(_pmsg, msg);
  payload = (byte*)_pmsg + sizeof("INFO");
- 
- 
- 
- 
+
  Serial.println(_pmsg+sizeof("INFO"));
  */
   Serial.println(msg);
