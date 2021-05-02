@@ -1,10 +1,10 @@
 /*
  * Copyright (c) 20148, Daniel Swann <hs@dswann.co.uk>, Matt Lloyd <dps.lwk@gmail.com>
  * All rights reserved.
- * 
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
- * 
+ *
  * 1. Redistributions of source code must retain the above copyright notice,
  *    this list of conditions and the following disclaimer.
  * 2. Redistributions in binary form must reproduce the above copyright
@@ -13,7 +13,7 @@
  * 3. Neither the name of the owner nor the names of its
  *    contributors may be used to endorse or promote products derived from
  *    this software without specific prior written permission.
- * 
+ *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -76,9 +76,9 @@ void serial_menu()
     if ((c=='\n') || (c=='\r'))
     {
       /* CR/LF detected (enter pressed), so process the serial input */
-      serial_process(serial_line); 
+      serial_process(serial_line);
       i = 0;
-    } 
+    }
     else if (i < (sizeof(serial_line)-1))
     {
       serial_line[i++] = c;
@@ -94,24 +94,24 @@ void serial_process(char *cmd)
     serial_main_menu(cmd);
   else if (_serial_state == SS_SET_MAC)
   {
-    serial_set_mac(cmd);  
+    serial_set_mac(cmd);
     serial_main_menu("0");
   }
   else if (_serial_state == SS_SET_IP)
   {
-    serial_set_ip(cmd);  
+    serial_set_ip(cmd);
     serial_main_menu("0");
   }
   else if (_serial_state == SS_SET_NAME)
   {
-    serial_set_name(cmd);  
+    serial_set_name(cmd);
     serial_main_menu("0");
   }
   else if (_serial_state == SS_SET_TOPIC)
   {
-    serial_set_topic(cmd);  
+    serial_set_topic(cmd);
     serial_main_menu("0");
-  } 
+  }
   else if (_serial_state == SS_SET_SERVER_IP)
   {
     serial_set_server_ip(cmd);
@@ -119,7 +119,7 @@ void serial_process(char *cmd)
   }
   else if (_serial_state == SS_SET_INPUT_OVERRIDE)
   {
-    if (serial_set_input_overide(cmd)) 
+    if (serial_set_input_overide(cmd))
       serial_main_menu("0");
   }
 }
@@ -134,7 +134,7 @@ void serial_main_menu(char *cmd)
   case 1: // "[ 1 ] Show current settings"
     serial_show_settings();
     Serial.println();
-    serial_show_main_menu();      
+    serial_show_main_menu();
     break;
 
   case 2: // "[ 2 ] Set MAC address"
@@ -151,11 +151,11 @@ void serial_main_menu(char *cmd)
 
   case 5: // "[ 5 ] Set name"
     serial_set_name(NULL);
-    break;    
+    break;
 
   case 6: // "[ 6 ] Set base topic"
     serial_set_topic(NULL);
-    break;    
+    break;
 
   case 7: // [ 7 ] Set input overide enables
     serial_set_input_overide(NULL);
@@ -188,7 +188,7 @@ void serial_show_main_menu()
   Serial.println(F("[ 6 ] Set base topic"));
   Serial.println(F("[ 7 ] Set input overide"));
   Serial.println(F("[ 8 ] Reset/reboot"));
-  Serial.print(F("Enter selection: "));  
+  Serial.print(F("Enter selection: "));
 }
 
 void serial_show_settings()
@@ -212,7 +212,7 @@ void serial_show_settings()
   Serial.println(buf);
 
   Serial.print(F("Name       : "));
-  Serial.println(_dev_name);  
+  Serial.println(_dev_name);
 
   Serial.print(F("Base topic : "));
   Serial.println(_base_topic);
@@ -248,7 +248,7 @@ void serial_set_mac(char *cmd)
   if (cmd == NULL)
   {
     Serial.print(F("\nEnter MAC address:"));
-  } 
+  }
   else
   {
     // MAC address entered - validate
@@ -257,7 +257,7 @@ void serial_set_mac(char *cmd)
     {
       Serial.println(F("\nOk - Saving address"));
       set_mac(mac_addr);
-    } 
+    }
     else
     {
       Serial.println(F("\nInvalid MAC address"));
@@ -280,7 +280,7 @@ void serial_set_ip(char *cmd)
   if (cmd == NULL)
   {
     Serial.print(F("\nEnter IP address:"));
-  } 
+  }
   else
   {
     // IP address entered - validate
@@ -288,7 +288,7 @@ void serial_set_ip(char *cmd)
     if (c != 4)
     {
       ip_good = false;
-    } 
+    }
     else
     {
       for (int i=0; i < 4; i++)
@@ -300,7 +300,7 @@ void serial_set_ip(char *cmd)
     {
       Serial.println(F("\nOk - Saving address"));
       set_ip(ip_addr);
-    } 
+    }
     else
     {
       Serial.println(F("\nInvalid IP address"));
@@ -323,7 +323,7 @@ void serial_set_server_ip(char *cmd)
   if (cmd == NULL)
   {
     Serial.print(F("\nEnter server IP address:"));
-  } 
+  }
   else
   {
     // IP address entered - validate
@@ -331,7 +331,7 @@ void serial_set_server_ip(char *cmd)
     if (c != 4)
     {
       ip_good = false;
-    } 
+    }
     else
     {
       for (int i=0; i < 4; i++)
@@ -343,7 +343,7 @@ void serial_set_server_ip(char *cmd)
     {
       Serial.println(F("\nOk - Saving address"));
       set_server_ip(ip_addr);
-    } 
+    }
     else
     {
       Serial.println(F("\nInvalid IP address"));
@@ -362,14 +362,14 @@ void serial_set_name(char *cmd)
   if (cmd == NULL)
   {
     Serial.print(F("\nEnter device name:"));
-  } 
+  }
   else
   {
     if (strlen(cmd) > 2)
     {
       Serial.println(F("\nOk - Saving name"));
       set_name(cmd);
-    } 
+    }
     else
     {
       Serial.println(F("\nError: too short"));
@@ -388,7 +388,7 @@ void serial_set_topic(char *cmd)
   if (cmd == NULL)
   {
     Serial.print(F("\nEnter base topic:"));
-  } 
+  }
   else
   {
     if (strlen(cmd) > 2)
@@ -416,7 +416,7 @@ bool serial_set_input_overide(char *cmd)
     _serial_input_override_state = CHANNEL;
     Serial.print(F("\nEnter input channel to change [0-7]: "));
     return false;
-  } 
+  }
   else if (_serial_input_override_state == CHANNEL)
   {
     // stash channe for later
@@ -424,11 +424,11 @@ bool serial_set_input_overide(char *cmd)
     Serial.print(F("\nOveride for channel "));
     Serial.print(_override_channel);
     Serial.print(F(" is currently "));
-    if ((_input_enables & (1<<_override_channel)) == 0) 
+    if ((_input_enables & (1<<_override_channel)) == 0)
     {
       Serial.print(F("eabled"));
-    } 
-    else 
+    }
+    else
     {
       Serial.print(F("disabled"));
     }
@@ -454,37 +454,37 @@ bool serial_set_input_overide(char *cmd)
 
     // enable channel
     set_input_enables(_override_channel, true);
-    
+
     Serial.print(F("\nOveride for channel "));
     Serial.print(_override_channel);
     Serial.print(F(" Enabled"));
 
     Serial.print(F("\nEnter mask for channel "));
     Serial.print(_override_channel);
-    Serial.print(F("? [mmmmmm]: "));
+    Serial.print(F("? [mmmmmmmm]: "));
     _serial_input_override_state = MASK;
     return false;
   }
   else if (_serial_input_override_state == MASK)
   {
     // save the mask
-    if (strlen(cmd) != 6) {
+    if (strlen(cmd) != 8) {
       Serial.print(F("Invalid mask length"));
       Serial.print(F("\nEnter mask for channel "));
       Serial.print(_override_channel);
-      Serial.print(F("? [mmmmmm]: "));
+      Serial.print(F("? [mmmmmmmm]: "));
       return false;
     }
 
     char *e;
     errno = 0;
     uint32_t mask = strtoul(cmd, &e, 16);
-    if ( *e || errno==EINVAL || errno==ERANGE ) 
+    if ( *e || errno==EINVAL || errno==ERANGE )
     {
       Serial.print(F("Invalid mask"));
       Serial.print(F("\nEnter mask for channel "));
       Serial.print(_override_channel);
-      Serial.print(F("? [mmmmmm]: "));
+      Serial.print(F("? [mmmmmmmm]: "));
       return false;
     }
 
@@ -492,44 +492,44 @@ bool serial_set_input_overide(char *cmd)
 
     Serial.print(F("\nEnter state for channel "));
     Serial.print(_override_channel);
-    Serial.print(F("? [ssssss]: "));
+    Serial.print(F("? [ssssssss]: "));
 
     _serial_input_override_state = STATES;
     return false;
   }
-  else if (_serial_input_override_state == STATES) 
+  else if (_serial_input_override_state == STATES)
   {
     // save the states
-    if (strlen(cmd) != 6) {
+    if (strlen(cmd) != 8) {
       Serial.print(F("Invalid state length"));
       Serial.print(F("\nEnter state for channel "));
       Serial.print(_override_channel);
-      Serial.print(F("? [ssssss]: "));
+      Serial.print(F("? [ssssssss]: "));
       return false;
     }
 
     char *e;
     errno = 0;
     uint32_t states = strtoul(cmd, &e, 16);
-    if ( *e || errno==EINVAL || errno==ERANGE ) 
+    if ( *e || errno==EINVAL || errno==ERANGE )
     {
       Serial.print(F("Invalid state"));
       Serial.print(F("\nEnter state for channel "));
       Serial.print(_override_channel);
-      Serial.print(F("? [ssssss]: "));
+      Serial.print(F("? [ssssssss]: "));
       return false;
     }
-    
+
     set_override_states(_override_channel, states);
 
     Serial.print(F("\nState tracking for channel "));
     Serial.print(_override_channel);
     Serial.print(F(" is currently "));
-    if ((_input_statefullness & (1<<_override_channel)) == 0) 
+    if ((_input_statefullness & (1<<_override_channel)) == 0)
     {
       Serial.print(F("eabled"));
-    } 
-    else 
+    }
+    else
     {
       Serial.print(F("disabled"));
     }
@@ -555,7 +555,7 @@ bool serial_set_input_overide(char *cmd)
 
     // enable state tracking for channel
     set_input_statefullness(_override_channel, true);
-    
+
     Serial.print(F("\nState tracking for channel "));
     Serial.print(_override_channel);
     Serial.print(F(" Enabled"));
@@ -621,7 +621,7 @@ void set_topic(char *new_topic)
 
 void set_input_enables(int channel, bool enable)
 {
-  if (enable) 
+  if (enable)
   {
     _input_enables &= ~(1UL<<(channel));
   }
@@ -634,7 +634,7 @@ void set_input_enables(int channel, bool enable)
 
 void set_input_statefullness(int channel, bool enable)
 {
-  if (enable) 
+  if (enable)
   {
     _input_statefullness &= ~(1UL<<(channel));
   }
@@ -650,14 +650,14 @@ void set_input_statefullness(int channel, bool enable)
 void set_override_masks(int channel, uint32_t mask)
 {
   _override_masks[channel] = mask;
-  for (int i = 0; i < 3; i++)
-    EEPROM.write(EEPROM_OVERRIDE_MASKS+(channel*3)+i, (mask >> (i*8)));
+  for (int i = 0; i < 4; i++)
+    EEPROM.write(EEPROM_OVERRIDE_MASKS+(channel*4)+i, (mask >> (i*8)));
 }
 
 
 void set_override_states(int channel, uint32_t states)
 {
   _override_states[channel] = states;
-  for (int i = 0; i < 3; i++)
-    EEPROM.write(EEPROM_OVERRIDE_STATES+(channel*3)+i, (states >> (i*8)));
+  for (int i = 0; i < 4; i++)
+    EEPROM.write(EEPROM_OVERRIDE_STATES+(channel*4)+i, (states >> (i*8)));
 }

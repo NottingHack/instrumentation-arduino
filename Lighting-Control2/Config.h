@@ -1,10 +1,10 @@
 /*
  * Copyright (c) 20148, Daniel Swann <hs@dswann.co.uk>, Matt Lloyd <dps.lwk@gmail.com>
  * All rights reserved.
- * 
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
- * 
+ *
  * 1. Redistributions of source code must retain the above copyright notice,
  *    this list of conditions and the following disclaimer.
  * 2. Redistributions in binary form must reproduce the above copyright
@@ -13,7 +13,7 @@
  * 3. Neither the name of the owner nor the names of its
  *    contributors may be used to endorse or promote products derived from
  *    this software without specific prior written permission.
- * 
+ *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -50,14 +50,14 @@
 
 // Locations in EEPROM of various settings
 #define EEPROM_MAC           0  //  6 bytes
-#define EEPROM_IP            6  //  4 bytes 
+#define EEPROM_IP            6  //  4 bytes
 #define EEPROM_BASE_TOPIC   10  // 40 bytes   e.g. "nh/tools/"
 #define EEPROM_NAME         50  // 20 bytes   e.g. "laser"
 #define EEPROM_SERVER_IP    70  //  4 bytes
 #define EEPROM_INPUT_ENABLES 74 //  1 bytes   0bit == enabled, 1 == disabled
-#define EEPROM_OVERRIDE_MASKS   75 // 24 bytes   3 bytes per 8 inputs 
-#define EEPROM_OVERRIDE_STATES  99 // 24 bytes   3 bytes per 8 inputs
-#define EEPROM_INPUT_STATEFULL  123 // 1 bytes   0bit == enabled, 1 == disabled
+#define EEPROM_OVERRIDE_MASKS   75 // 32 bytes   4 bytes per 8 inputs
+#define EEPROM_OVERRIDE_STATES  107 // 32 bytes   4 bytes per 8 inputs
+#define EEPROM_INPUT_STATEFULL  139 // 1 bytes   0bit == enabled, 1 == disabled
 
 #define MQTT_PORT 1883
 
@@ -70,6 +70,9 @@ const char ON[] PROGMEM = "ON";
 const char OFF[] PROGMEM = "OFF";
 const char TOGGLE[] PROGMEM = "TOGGLE";
 
+// PCF8574
+// #define PCF_BASE_ADDRESS 0x20
+// PCF8574A (we have these :/)
 #define PCF_BASE_ADDRESS 0x38
 
 // Debug output destinations

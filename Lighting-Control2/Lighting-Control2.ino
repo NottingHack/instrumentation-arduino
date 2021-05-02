@@ -71,7 +71,7 @@ unsigned long _last_state_change = 0;
 uint8_t _input_state = 0;
 uint8_t _input_state_tracking = 0;
 uint32_t _output_state = 0x00000000;
-uint32_t _output_retained = 0xFF000000;
+uint32_t _output_retained = 0x00000000;
 
 /****************************************************
  * callbackMQTT
@@ -128,7 +128,7 @@ void callbackMQTT(char* topic, byte* payload, unsigned int length)
 void handle_set(char* channel, byte* payload, int length)
 {
   int chan = atoi(channel);
-  if (chan < 0 || chan > 23)
+  if (chan < 0 || chan > 31)
     return;
 
   // update chan
@@ -157,7 +157,7 @@ void handle_state(char* channel, byte* payload, int length)
 {
   int chan = atoi(channel);
   uint32_t chanMask = 1UL<<(chan);
-  if (chan < 0 || chan > 23)
+  if (chan < 0 || chan > 31)
     return;
   if (_output_retained == 0xFFFFFFFF || (_output_retained & chanMask) )
     return;
@@ -187,7 +187,11 @@ void handle_state(char* channel, byte* payload, int length)
 
 void update_outputs(int chan)
 {
-  Wire.beginTransmission(PCF_BASE_ADDRESS | (chan/8));
+  if (chan >= 24) {
+    Wire.beginTransmission(PCF_BASE_ADDRESS | ((chan/8)+1));
+  } else {
+    Wire.beginTransmission(PCF_BASE_ADDRESS | (chan/8));
+  }
   Wire.write((uint8_t)(_output_state >> (((uint32_t)chan/8UL)*8UL)));
   Wire.endTransmission();
 }
@@ -220,7 +224,7 @@ void read_inputs()
             _override_state = ~_override_state;
           }
 
-          for (uint32_t chan = 0; chan < 24; ++chan)
+          for (uint32_t chan = 0; chan <= 31; ++chan)
           {
             uint32_t chanMask = 1UL<<chan;
             if (_override_masks[i] & chanMask) {
@@ -448,12 +452,12 @@ void setup()
   _input_enables = EEPROM.read(EEPROM_INPUT_ENABLES);
 
   for (int i = 0; i < 8; i++)
-    for (int j = 0; j < 3; j++)
-      _override_masks[i] |= (uint32_t)EEPROM.read(EEPROM_OVERRIDE_MASKS+(i*3)+j) << (j*8);
+    for (int j = 0; j < 4; j++)
+      _override_masks[i] |= (uint32_t)EEPROM.read(EEPROM_OVERRIDE_MASKS+(i*4)+j) << (j*8);
 
   for (int i = 0; i < 8; i++)
-    for (int j = 0; j < 3; j++)
-      _override_states[i] |= (uint32_t)EEPROM.read(EEPROM_OVERRIDE_STATES+(i*3)+j) << (j*8);
+    for (int j = 0; j < 4; j++)
+      _override_states[i] |= (uint32_t)EEPROM.read(EEPROM_OVERRIDE_STATES+(i*4)+j) << (j*8);
 
   _input_statefullness = EEPROM.read(EEPROM_INPUT_STATEFULL);
 
