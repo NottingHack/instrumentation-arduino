@@ -19,3 +19,9 @@
 [submodule "libraries/LiquidCrystal_I2C"]
 	path = libraries/LiquidCrystal_I2C
 	url = git@github.com:marcoschwartz/LiquidCrystal_I2C.git
+[submodule "libraries/ArduinoModbus"]
+	path = libraries/ArduinoModbus
+	url = git@github.com:arduino-libraries/ArduinoModbus.git
+[submodule "libraries/ArduinoRS485"]
+	path = libraries/ArduinoRS485
+	url = git@github.com:arduino-libraries/ArduinoRS485.git
