@@ -1,10 +1,10 @@
 /*
  * Copyright (c) 2017, Daniel Swann <hs@dswann.co.uk>
  * All rights reserved.
- * 
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
- * 
+ *
  * 1. Redistributions of source code must retain the above copyright notice,
  *    this list of conditions and the following disclaimer.
  * 2. Redistributions in binary form must reproduce the above copyright
@@ -13,7 +13,7 @@
  * 3. Neither the name of the owner nor the names of its
  *    contributors may be used to endorse or promote products derived from
  *    this software without specific prior written permission.
- * 
+ *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -53,10 +53,14 @@
 #define DOOR_SENSE_SECURE     1
 #define DOOR_SENSE_UNSECURE   0
 
+// PCF8574
+// #define PCF_BASE_ADDRESS 0x20
+// PCF8574A (we have these :/)
+// #define PCF_BASE_ADDRESS 0x38
 #define PORT_EXPANDER_ADDR    0x38
 #define PORT_EXPANDER_RELAY   0    // Bit/port position relay is on (0-7)
 
-// does a high or low on the relay pin unlock the door? 
+// does a high or low on the relay pin unlock the door?
 #define DOOR_RELAY_LOCKED     0
 
 // does a high or low on the DOOR_CONTACT pin signify an open or closed door?
@@ -95,7 +99,7 @@
 
 // Locations in EEPROM of various settings
 #define EEPROM_MAC           0 //  6 bytes
-#define EEPROM_IP            6 //  4 bytes 
+#define EEPROM_IP            6 //  4 bytes
 #define EEPROM_BASE_TOPIC   10 // 10 bytes   e.g. "nh/gk"
                                // 30 bytes now unused
 #define EEPROM_DOOR_ID      50 //  1 byte

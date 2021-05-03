@@ -3,6 +3,6 @@
 BOARD_TAG = uno
 ARDUINO_PORT = /dev/ttyUSB0
 ARDUINO_LIBS = PubSubClient EEPROM Wire SPI Ethernet RDM880
-USER_LIB_PATH := $(realpath ../Libraries)
+USER_LIB_PATH := $(realpath ../libraries)
 
 include $(ARDMK_DIR)/Arduino.mk
