@@ -133,13 +133,13 @@ void handle_set(char* channel, byte* payload, int length)
 
   // update chan
   _output_retained |= (1UL<<(chan));
-  if (strncmp_P((char*)payload, TOGGLE, strlen_P(TOGGLE)) == 0){
+  if (strncmp_P((char*)payload, sTOGGLE, strlen_P(sTOGGLE)) == 0){
     // toggle bit
     _output_state ^= (1UL<<(chan));
-  } else if (strncmp_P((char*)payload, ON, strlen_P(ON)) == 0) {
+  } else if (strncmp_P((char*)payload, sON, strlen_P(sON)) == 0) {
     // set bit
     _output_state |= (1UL<<(chan));
-  } else if (strncmp_P((char*)payload, OFF, strlen_P(OFF)) == 0) {
+  } else if (strncmp_P((char*)payload, sOFF, strlen_P(sOFF)) == 0) {
     // clear bit
     _output_state &= ~(1UL<<(chan));
   } else {
@@ -164,10 +164,10 @@ void handle_state(char* channel, byte* payload, int length)
 
   // update chan
   _output_retained |= chanMask;
-  if (strncmp_P((char*)payload, ON, strlen_P(ON)) == 0) {
+  if (strncmp_P((char*)payload, sON, strlen_P(sON)) == 0) {
     // set bit
     _output_state |= chanMask;
-  } else if (strncmp_P((char*)payload, OFF, strlen_P(OFF)) == 0) {
+  } else if (strncmp_P((char*)payload, sOFF, strlen_P(sOFF)) == 0) {
     // clear bit
     _output_state &= ~chanMask;
   } else {
@@ -217,7 +217,7 @@ void read_inputs()
         {
           uint32_t _override_state = _override_states[i];
           // if we are tracking the state of this input pin is enabled (low == enabled)
-          // amd this the second press
+          // and this the second press
           if (((_input_statefullness & (1<<i)) == 0) && ((_input_state_tracking & (1<<i)) != 0))
           {
             // flip the output state requests
@@ -255,7 +255,7 @@ void publish_all_input_states()
 
   for (int i = 0; i < 8; ++i)
   {
-    boolean bit_state = (_input_state & ( 1 << i )) >> i;
+    // boolean bit_state = (_input_state & ( 1 << i )) >> i;
     publish_input_state(i);
   }
 }
@@ -264,9 +264,9 @@ void publish_input_state(int channel)
 {
   char msg[4];
   if (!(_input_state & (1<<(channel)))) {
-    strcpy_P(msg, ON);
+    strcpy_P(msg, sON);
   } else {
-    strcpy_P(msg, OFF);
+    strcpy_P(msg, sOFF);
   }
 
   int tt_len = strlen(tool_topic);
@@ -274,7 +274,7 @@ void publish_input_state(int channel)
   tool_topic[tt_len+1] = 'I';
   tool_topic[tt_len+2] = channel | 0x30;
   strcpy(tool_topic+tt_len+3, "/state");
-  _client->publish(tool_topic, msg, strlen(msg), true);
+  _client->publish(tool_topic, (uint8_t*) msg, strlen(msg), true);
   tool_topic[tt_len] = '\0';
 }
 
@@ -283,16 +283,16 @@ void publish_output_state(char* channel)
   char msg[4];
   int chan = atoi(channel);
   if (_output_state & (1UL<<chan)) {
-    strcpy_P(msg, ON);
+    strcpy_P(msg, sON);
   } else {
-    strcpy_P(msg, OFF);
+    strcpy_P(msg, sOFF);
   }
 
   int tt_len = strlen(tool_topic);
   tool_topic[tt_len] = '/';
   strcpy(tool_topic+tt_len+1, channel);
   strcpy(tool_topic+tt_len+3, "/state");
-  _client->publish(tool_topic, msg, strlen(msg), true);
+  _client->publish(tool_topic, (uint8_t*) msg, strlen(msg), true);
   tool_topic[tt_len] = '\0';
 }
 
@@ -451,13 +451,12 @@ void setup()
 
   _input_enables = EEPROM.read(EEPROM_INPUT_ENABLES);
 
-  for (int i = 0; i < 8; i++)
-    for (int j = 0; j < 4; j++)
+  for (int i = 0; i < 8; i++) {
+    for (int j = 0; j < 4; j++) {
       _override_masks[i] |= (uint32_t)EEPROM.read(EEPROM_OVERRIDE_MASKS+(i*4)+j) << (j*8);
-
-  for (int i = 0; i < 8; i++)
-    for (int j = 0; j < 4; j++)
       _override_states[i] |= (uint32_t)EEPROM.read(EEPROM_OVERRIDE_STATES+(i*4)+j) << (j*8);
+    }
+  }
 
   _input_statefullness = EEPROM.read(EEPROM_INPUT_STATEFULL);
 
@@ -576,7 +575,7 @@ boolean set_dev_state(dev_state_t new_state)
   case DEV_NO_CONN:
     if ((_dev_state == DEV_IDLE))
     {
-      dbg_println("NO_CONN");
+      dbg_println(F("NO_CONN"));
       _dev_state =  DEV_NO_CONN;
       lcd_display(F("No network"));
       lcd_display(F("conection!"), 1, false);

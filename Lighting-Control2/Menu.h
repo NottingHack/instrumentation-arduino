@@ -1,6 +1,8 @@
-#include <avr/wdt.h> 
-#include <EEPROM.h>
+#ifndef MENU_H
+#define MENU_H
 
+#include <avr/wdt.h>
+#include <EEPROM.h>
 
 void serial_menu();
 void serial_process(char *cmd);
@@ -23,3 +25,5 @@ void set_input_enables(int channel, bool enable);
 void set_override_masks(int channel, uint32_t mask);
 void set_override_states(int channel, uint32_t states);
 void set_input_statefullness(int channel, bool enable);
+
+#endif

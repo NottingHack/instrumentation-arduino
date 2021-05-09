@@ -1,3 +1,5 @@
+#ifndef LIGHTING_CONTROL_H
+#define LIGHTING_CONTROL_H
 
 // Device states
 enum dev_state_t
@@ -40,7 +42,7 @@ char _dev_name [21];
 byte _mac[6];
 byte _ip[4];
 
-// automatic input handeling
+// automatic input handling
 uint8_t _input_enables;
 uint32_t _override_masks[8];
 uint32_t _override_states[8];
@@ -49,3 +51,4 @@ uint8_t _input_statefullness;
 serial_state_t _serial_state;
 
 
+#endif

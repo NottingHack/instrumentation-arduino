@@ -27,6 +27,11 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+#ifndef LIGHTING_CONTROL_CONFIG_H
+#define LIGHTING_CONTROL_CONFIG_H
+
+// #define BUILD_IDENT "IDE"
+
 /* Pin assigments */
 #define PIN_LED0          A0
 #define PIN_LED1          A1
@@ -66,9 +71,9 @@
 #define P_STATUS "nh/status/res"
 #define STATUS_STRING "STATUS"
 
-const char ON[] PROGMEM = "ON";
-const char OFF[] PROGMEM = "OFF";
-const char TOGGLE[] PROGMEM = "TOGGLE";
+const char sON[] PROGMEM = "ON";
+const char sOFF[] PROGMEM = "OFF";
+const char sTOGGLE[] PROGMEM = "TOGGLE";
 
 // PCF8574
 // #define PCF_BASE_ADDRESS 0x20
@@ -96,3 +101,5 @@ enum serial_state_t
   SS_SET_SERVER_IP,
   SS_SET_INPUT_OVERRIDE
 };
+
+#endif
