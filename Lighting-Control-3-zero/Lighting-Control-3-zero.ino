@@ -30,35 +30,34 @@
 
 /* Arduino automated lighting control for Nottingham Hackspace
  *
- * Target board = Arduino Uno, Arduino version = 1.0.1
+ * Target board = Custom Arduino zero, Arduino version = 1.18.12, Samd Core version 1.8.8
  *
  * Expects to be connected to:
  *   - Wiznet W5100 based Ethernet shield
  * Pin assignments are in Config.h
  *
- * Configuration (IP, MAC, etc) is done using serial @ 9600. Reset the Arduino after changing the config.
+ * Configuration (IP, MAC, etc) is done using serial @ 19200. Reset the Arduino after changing the config.
  *
  * Additional required libraries:
  *   - PubSubClient                       - https://github.com/knolleary/pubsubclient
  */
 
 #include <Wire.h>
-#include <LiquidCrystal_I2C.h>
 #include <SPI.h>
 #include <Ethernet.h>
 #include <PubSubClient.h>
-#include <EEPROM.h>
+#include <SPIEEPROM.h>
 #include <avr/wdt.h>
+#include <ArduinoRS485.h>
+#include <ArduinoModbus.h>
 #include "Config.h"
 #include "Lighting.h"
 #include "Menu.h"
 
-// #define BUILD_IDENT "IDE"
-#define LCD_WIDTH 16
 
 EthernetClient _ethClient;
 PubSubClient *_client;
-LiquidCrystal_I2C lcd(0x27,16,2);  // 16x2 display at address 0x27
+SPIEEPROM eeprom;
 
 dev_state_t    _dev_state;
 
@@ -72,6 +71,9 @@ uint8_t _input_state = 0;
 uint8_t _input_state_tracking = 0;
 uint32_t _output_state = 0x00000000;
 uint32_t _output_retained = 0x00000000;
+
+uint16_t _rs485_io_input_state[10];
+uint16_t _rs485_io_input_state_tracking[10];
 
 /****************************************************
  * callbackMQTT
@@ -258,6 +260,10 @@ void publish_all_input_states()
     // boolean bit_state = (_input_state & ( 1 << i )) >> i;
     publish_input_state(i);
   }
+
+  for (int node = 0; node < _rs485_io_count; node++)
+    for (int i = 0; i < 16; i++)
+      publish_rs485_input_state(node, i);
 }
 
 void publish_input_state(int channel)
@@ -278,6 +284,25 @@ void publish_input_state(int channel)
   tool_topic[tt_len] = '\0';
 }
 
+void publish_rs485_input_state(int node, int channel)
+{
+  char msg[4];
+  if (!(_rs485_io_input_state[node] & (1<<(channel)))) {
+    strcpy_P(msg, sON);
+  } else {
+    strcpy_P(msg, sOFF);
+  }
+
+  int tt_len = strlen(tool_topic);
+  tool_topic[tt_len] = '/';
+  tool_topic[tt_len+1] = 'I';
+  sprintf(tool_topic+tt_len+2, "%02d", 10+node);
+  sprintf(tool_topic+tt_len+4, "%02d", channel);
+  strcpy(tool_topic+tt_len+6, "/state");
+  _client->publish(tool_topic, (uint8_t*) msg, strlen(msg), true);
+  tool_topic[tt_len] = '\0';
+}
+
 void publish_output_state(char* channel)
 {
   char msg[4];
@@ -294,58 +319,6 @@ void publish_output_state(char* channel)
   strcpy(tool_topic+tt_len+3, "/state");
   _client->publish(tool_topic, (uint8_t*) msg, strlen(msg), true);
   tool_topic[tt_len] = '\0';
-}
-
-void lcd_display_mqtt(char *payload)
-{
-  // Display payload on LCD display - \n in string seperates line 1+2.
-  char ln1[LCD_WIDTH+1];
-  char ln2[LCD_WIDTH+1];
-  char *payPtr, *lnPtr;
-
-  payPtr = (char*)payload;
-
-  memset(ln1, 0, sizeof(ln1));
-  memset(ln2, 0, sizeof(ln2));
-
-  /* Clear display */
-  lcd.clear();
-
-  lnPtr = ln1;
-  for (int i=0; i < LCD_WIDTH; i++)
-  {
-    if ((*payPtr=='\n') || (*payPtr=='\0') || (*payPtr=='\r'))
-    {
-      payPtr++;
-      break;
-    }
-
-    *lnPtr++ = *payPtr++;
-  }
-
-  lnPtr = ln2;
-  for (int i=0; i < LCD_WIDTH; i++)
-  {
-    if (*payPtr=='\0')
-      break;
-
-    if (*payPtr=='\n')
-    {
-      payPtr++;
-      *lnPtr=' ';
-    }
-
-    *lnPtr++ = *payPtr++;
-  }
-
-  lcd.clear();
-  /* Output 1st line */
-  lcd.setCursor(0, 0);
-  lcd.print(ln1);
-
-  /* Output 2nd line */
-  lcd.setCursor(0, 1);
-  lcd.print(ln2);
 }
 
 /****************************************************
@@ -411,7 +384,7 @@ void setup()
   Wire.begin();
 
   char build_ident[17]="";
-  Serial.begin(9600);
+  Serial.begin(RS485_BAUD);
   dbg_println(F("Start!"));
   _serial_state = SS_MAIN_MENU;
   set_dev_state(DEV_NO_CONN);
@@ -460,15 +433,27 @@ void setup()
 
   _input_statefullness = EEPROM.read(EEPROM_INPUT_STATEFULL);
 
+  _energy_monitor_enabled = EEPROM.read(EEPROM_ENERGY_MONITOR_ENABLE);
+
+  _rs485_io_count = EEPROM.read(EEPROM_RS458_IO_COUNT);
+
+  for (int i = 0; i < 10; i++) {
+    _rs485_io_input_enables[i] = EEPROM.read(EEPROM_RS485_INPUT_ENABLES+i);
+
+    for (int j = 0; j < 4; j++) {
+      for (int k = 0; k < 4; k++) {
+        _rs485_io_override_masks[i][j] |= (uint32_t)EEPROM.read(EEPROM_RS485_OVERRIDE_MASKS+(i*4)+(j*4)+k) << (k*8);
+        _rs485_io_override_states[i][j] |= (uint32_t)EEPROM.read(EEPROM_RS485_OVERRIDE_STATES+(i*4)+(j*4)+k) << (k*8);
+      }
+    }
+
+    _rs485_io_input_statefullness[i] = EEPROM.read(EEPROM_RS485_INPUT_STATEFULL+i);
+  }
+
   sprintf(tool_topic, "%s/%s", _base_topic, _dev_name);
 
-  dbg_println(F("Init LCD"));
-  lcd.init();
-  lcd.backlight();
   snprintf(build_ident, sizeof(build_ident), "FW:%s", BUILD_IDENT);
-  lcd_display(build_ident);
   dbg_println(build_ident);
-  lcd_display(_dev_name,1, false);
 
   dbg_println(F("Start Ethernet"));
   Ethernet.begin(_mac, _ip);
@@ -492,12 +477,35 @@ void setup()
 
   Serial.println();
   serial_show_main_menu();
+
+  uint32_t menuTimeout = millis();
+  while ((millis() - menuTimeout) < MENU_TIMEOUT) {
+    if (Serial.available() > 0) {
+      menuTimeout = millis();
+    }
+
+    // Do serial menu
+    serial_menu();
+
+    state_led_loop();
+  }
+
+  dbg_println(F("Serial Disabled"));
+
   wdt_enable(WDTO_8S);
 
   // read and bin the input port expander to clear any old interrupt
   Wire.requestFrom(PCF_BASE_ADDRESS | 3 , 1);
   Wire.read();
 
+  RS485.setPins(RS485_DEFAULT_TX_PIN, RS485_DE, RS485_RE);
+  // start the Modbus RTU client
+  if (!ModbusRTUClient.begin(RS485_BAUD, RS485_SERIAL_CONFIG)) {
+    dbg_println(F("Failed to start Modbus RTU Client!"));
+    while (1);
+  }
+
+  _disable_serial = true;
 } // end void setup()
 
 void input_int()
@@ -553,12 +561,12 @@ void loop()
   checkMQTT();
 
   // Do serial menu
-  serial_menu();
+  // serial_menu();
 
   // Check if any buttons have been pushed
   check_buttons();
 
-  lcd_loop();
+  check_rs485_inputs();
 
   state_led_loop();
 
@@ -577,8 +585,6 @@ boolean set_dev_state(dev_state_t new_state)
     {
       dbg_println(F("NO_CONN"));
       _dev_state =  DEV_NO_CONN;
-      lcd_display(F("No network"));
-      lcd_display(F("conection!"), 1, false);
     }
     else
       ret = false;
@@ -603,12 +609,6 @@ boolean set_dev_state(dev_state_t new_state)
   return ret;
 }
 
-void lcd_loop()
-{
-  static unsigned long last_time_display = 0;
-
-}
-
 void check_buttons()
 {
   if (_input_int_pushed)
@@ -627,6 +627,66 @@ void check_buttons()
   }
 }
 
+void check_rs485_inputs()
+{
+  uint16_t old_rs485_input_state;
+  int16_t input_read;
+
+  for (int node = 0; node < _rs485_io_count; node++) {
+    old_rs485_input_state = _rs485_io_input_state[node];
+    input_read = ModbusRTUClient.inputRegisterRead(10+node, 0x00);
+
+    if (input_read == -1) {
+      continue;
+    }
+
+    _rs485_io_input_state[node] = input_read;
+
+    // find out which input has changed if any
+    for (int input_channel = 0; input_channel < 16; ++input_channel)
+    {
+      if ((old_rs485_input_state & ( 1 << input_channel )) != ((uint16_t) input_read & ( 1 << input_channel )) )
+      {
+        publish_rs485_input_state(node, input_channel);
+        // check input mapping and update outputs
+        if (!(input_read & ( 1 << input_channel ))) // low == pressed
+        {
+          if ((_rs485_io_input_enables[node] & (1<<input_channel)) == 0)
+          {
+            uint32_t _override_state = _rs485_io_override_states[node][input_channel];
+            // if we are tracking the state of this input pin is enabled (low == enabled)
+            // and this the second press
+            if (((_rs485_io_input_statefullness[node] & (1<<input_channel)) == 0) && ((_rs485_io_input_state_tracking[node] & (1<<input_channel)) != 0))
+            {
+              // flip the output state requests
+              _override_state = ~_override_state;
+            }
+
+            for (uint32_t chan = 0; chan <= 31; ++chan)
+            {
+              uint32_t chanMask = 1UL<<chan;
+              if (_rs485_io_override_masks[node][input_channel] & chanMask) {
+                if (_override_state & chanMask) {
+                  _output_state |= chanMask;
+                } else {
+                  _output_state &= ~chanMask;
+                }
+                update_outputs(chan);
+                char channel[3];
+                sprintf(channel, "%02lu", chan);
+                publish_output_state(channel);
+              }
+            }
+          }
+
+          // toggle tracking state bit for this input pin
+          _rs485_io_input_state_tracking[node] ^= 1 << input_channel;
+        }
+      }
+    }
+  }
+}
+
 // Publish <msg> to topic "<tool_topic>/<act>"
 void send_action(const char *act, char *msg)
 {
@@ -635,31 +695,6 @@ void send_action(const char *act, char *msg)
   strcpy(tool_topic+tt_len+1, act);
   _client->publish(tool_topic, msg);
   tool_topic[tt_len] = '\0';
-}
-
-void lcd_display(const __FlashStringHelper *n, short line, boolean wipe_display)
-{
-  uint8_t c;
-  byte payload[LCD_WIDTH+1];
-  char *pn = (char*)n;
-  int count=0;
-
-  memset(payload, 0, sizeof(payload));
-
-  while (((c = pgm_read_byte_near(pn++)) != 0) && (count < sizeof(payload)))
-    payload[count++] = c;
-
-  lcd_display((char*)payload, line, wipe_display);
-}
-
-void lcd_display(char *msg, short line, boolean wipe_display)
-{
-  if (wipe_display)
-    lcd.clear();
-
-  lcd.setCursor(0, line);
-
-  lcd.print(msg);
 }
 
 void dbg_println(const __FlashStringHelper *n)
@@ -679,6 +714,10 @@ void dbg_println(const __FlashStringHelper *n)
   //  _client.publish(P_NOTE_TX, _pmsg);
 #endif
 
+  if (_disable_serial) {
+    return;
+  }
+
   Serial.println(_pmsg+sizeof("INFO"));
 }
 
@@ -693,6 +732,11 @@ void dbg_println(const char *msg)
 
  Serial.println(_pmsg+sizeof("INFO"));
  */
+
+  if (_disable_serial) {
+    return;
+  }
+
   Serial.println(msg);
 }
 

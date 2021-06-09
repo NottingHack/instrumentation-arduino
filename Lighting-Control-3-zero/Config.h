@@ -32,37 +32,47 @@
 
 // #define BUILD_IDENT "IDE"
 
+// Serial EM RS485
+// Serial1 RS485IO
+
 /* Pin assigments */
 #define PIN_LED0          A0
 #define PIN_LED1          A1
 #define PIN_LED2          A2
 #define PIN_LED3          A3
-//      SDA               A4
-//      SCL               A5
-#define PIN_INPUT_INT      2 /* Uses interupt0 - do not move */
-//      N/C                3
-//      N/C                4
-//      N/C                5
-//      N/C                6
-//      N/C                7
-//      N/C                8
+//      N/C               A4
+//      N/C               A5
+#define RS485_RE           2
+#define SPI_EEPROM_SS      3
+#define RS485_DE           4
+#define EM_SO              5
+#define EM_RS485_RE        6
+#define EM_RS485_DE        7
+#define PIN_INPUT_INT      8
 //      N/C                9
 //      Ethernet SS       10
-//      MISO (RFID+Eth)   11
-//      MOSI (RFID+Eth)   12
-//      SCK  (RFID+Eth)   13
+//      MISO (EEPROM+Eth) 11
+//      MOSI (EEPROM+Eth) 12
+//      SCK  (EEPROM+Eth) 13
 
 
 // Locations in EEPROM of various settings
-#define EEPROM_MAC           0  //  6 bytes
-#define EEPROM_IP            6  //  4 bytes
-#define EEPROM_BASE_TOPIC   10  // 40 bytes   e.g. "nh/tools/"
-#define EEPROM_NAME         50  // 20 bytes   e.g. "laser"
-#define EEPROM_SERVER_IP    70  //  4 bytes
-#define EEPROM_INPUT_ENABLES 74 //  1 bytes   0bit == enabled, 1 == disabled
-#define EEPROM_OVERRIDE_MASKS   75 // 32 bytes   4 bytes per 8 inputs
-#define EEPROM_OVERRIDE_STATES  107 // 32 bytes   4 bytes per 8 inputs
-#define EEPROM_INPUT_STATEFULL  139 // 1 bytes   0bit == enabled, 1 == disabled
+#define EEPROM_MAC                      0   //   6 bytes
+#define EEPROM_IP                       6   //   4 bytes
+#define EEPROM_BASE_TOPIC               10  //  40 bytes   e.g. "nh/tools/"
+#define EEPROM_NAME                     50  //  20 bytes   e.g. "laser"
+#define EEPROM_SERVER_IP                70  //   4 bytes
+#define EEPROM_INPUT_ENABLES            74  //   1 bytes   0bit == enabled, 1 == disabled
+#define EEPROM_OVERRIDE_MASKS           75  //  32 bytes   4 bytes per 8 inputs
+#define EEPROM_OVERRIDE_STATES          107 //  32 bytes   4 bytes per 8 inputs
+#define EEPROM_INPUT_STATEFULL          139 //   1 bytes   0bit == enabled, 1 == disabled
+#define EEPROM_ENERGY_MONITOR_ENABLE    140 //   1 bytes
+#define EEPROM_RS458_IO_COUNT           141 //   1 bytes
+#define EEPROM_RS485_INPUT_ENABLES      142 //  10 bytes   1 bytes per io modules (x10) 0bit == enabled, 1 == disabled
+#define EEPROM_RS485_OVERRIDE_MASKS     152 // 640 bytes   4 bytes per 16 inputs per io module (x10)
+#define EEPROM_RS485_OVERRIDE_STATES    792 // 640 bytes   4 bytes per 16 inputs per io module (x10)
+#define EEPROM_RS485_INPUT_STATEFULL    1432 //  10 bytes   1 bytes per io modules (x10) 0bit == enabled, 1 == disabled
+// #define EEPROM_                         1442 // 606 left
 
 #define MQTT_PORT 1883
 
@@ -90,6 +100,11 @@ const char sTOGGLE[] PROGMEM = "TOGGLE";
 // How fast the state LED should flash when not connected (lower = faster)
 #define STATE_FLASH_FREQ  1000
 
+#define MENU_TIMEOUT 5000
+
+#define RS485_BAUD 19200
+#define RS485_SERIAL_CONFIG SERIAL_8E1
+
 // Serial/config menu current position
 enum serial_state_t
 {
@@ -99,7 +114,10 @@ enum serial_state_t
   SS_SET_NAME,
   SS_SET_TOPIC,
   SS_SET_SERVER_IP,
-  SS_SET_INPUT_OVERRIDE
+  SS_SET_INPUT_OVERRIDE,
+  SS_SET_ENERGY_MONITOR,
+  SS_SET_RS48_IO,
+  SS_SET_RS48_IO_INPUT_OVERRIDE
 };
 
 #endif

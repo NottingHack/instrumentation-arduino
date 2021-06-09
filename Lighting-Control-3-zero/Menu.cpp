@@ -43,8 +43,16 @@ extern uint8_t _input_enables;
 extern uint32_t _override_masks[8];
 extern uint32_t _override_states[8];
 extern uint8_t _input_statefullness;
+extern bool _energy_monitor_enabled;
+extern uint8_t _rs485_io_count;
+extern uint8_t _rs485_io_input_enables[10];
+extern uint32_t _rs485_io_override_masks[10][4];
+extern uint32_t _rs485_io_override_states[10][4];
+extern uint8_t _rs485_io_input_statefullness[10];
 
 extern serial_state_t _serial_state;
+
+extern bool _disable_serial;
 
 enum serial_input_override_state_t
 {
@@ -63,6 +71,10 @@ uint8_t _override_channel;
 void serial_menu()
 /* Process any serial input since last call - if any - and call serial_process when we have a cr/lf terminated line. */
 {
+  if (_disable_serial) {
+    return;
+  }
+
   static char serial_line[65];
   static unsigned int i = 0;
   char c;
@@ -122,6 +134,16 @@ void serial_process(char *cmd)
     if (serial_set_input_overide(cmd))
       serial_main_menu("0");
   }
+  else if (_serial_state == SS_SET_ENERGY_MONITOR)
+  {
+    serial_set_energy_monitor(cmd);
+    serial_main_menu("0");
+  }
+  else if (_serial_state == SS_SET_RS48_IO)
+  {
+    serial_set_rs485_io_count(cmd);
+    serial_main_menu("0");
+  }
 }
 
 void serial_main_menu(char *cmd)
@@ -161,7 +183,15 @@ void serial_main_menu(char *cmd)
     serial_set_input_overide(NULL);
     break;
 
-  case 8: // "[ 8 ] Reset/reboot"
+  case 8: // [ 8 ] Set input overide enables
+    serial_set_energy_monitor(NULL);
+    break;
+
+  case 9: // [ 9 ] Set input overide enables
+    serial_set_rs485_io_count(NULL);
+    break;
+
+  case 10: // "[ 10 ] Reset/reboot"
     Serial.println("Reboot....");
     wdt_enable(WDTO_2S); // Watchdog abuse...
     while(1);
@@ -187,7 +217,9 @@ void serial_show_main_menu()
   Serial.println(F("[ 5 ] Set name"));
   Serial.println(F("[ 6 ] Set base topic"));
   Serial.println(F("[ 7 ] Set input overide"));
-  Serial.println(F("[ 8 ] Reset/reboot"));
+  Serial.println(F("[ 8 ] Set energy monitor"));
+  Serial.println(F("[ 9 ] Set RS485 IO"));
+  Serial.println(F("[ 10 ] Reset/reboot"));
   Serial.print(F("Enter selection: "));
 }
 
@@ -218,6 +250,13 @@ void serial_show_settings()
   Serial.println(_base_topic);
 
   serial_show_override_settings();
+
+  Serial.print(F("RS485 IO Count : "));
+  Serial.println(_dev_name);
+
+  Serial.print(F("Energy Monitor Enabled: "));
+  Serial.println(_base_topic);
+
 }
 
 void serial_show_override_settings()
@@ -421,19 +460,19 @@ bool serial_set_input_overide(char *cmd)
   {
     // stash channe for later
     _override_channel = atoi(cmd);
-    Serial.print(F("\nOveride for channel "));
+    Serial.print(F("\nOverride for channel "));
     Serial.print(_override_channel);
     Serial.print(F(" is currently "));
     if ((_input_enables & (1<<_override_channel)) == 0)
     {
-      Serial.print(F("eabled"));
+      Serial.print(F("enabled"));
     }
     else
     {
       Serial.print(F("disabled"));
     }
 
-    Serial.print(F("\n[y] to enable, [n] to diable? "));
+    Serial.print(F("\n[y] to enable, [n] to disable? "));
     _serial_input_override_state = ENABLE;
     return false;
   }
@@ -443,7 +482,7 @@ bool serial_set_input_overide(char *cmd)
       // Disable mask
       set_input_enables(_override_channel, false);
 
-      Serial.print(F("\nOveride for channel "));
+      Serial.print(F("\nOverride for channel "));
       Serial.print(_override_channel);
       Serial.print(F(" Disabled"));
       // Return to main menu
@@ -455,7 +494,7 @@ bool serial_set_input_overide(char *cmd)
     // enable channel
     set_input_enables(_override_channel, true);
 
-    Serial.print(F("\nOveride for channel "));
+    Serial.print(F("\nOverride for channel "));
     Serial.print(_override_channel);
     Serial.print(F(" Enabled"));
 
@@ -527,14 +566,14 @@ bool serial_set_input_overide(char *cmd)
     Serial.print(F(" is currently "));
     if ((_input_statefullness & (1<<_override_channel)) == 0)
     {
-      Serial.print(F("eabled"));
+      Serial.print(F("enabled"));
     }
     else
     {
       Serial.print(F("disabled"));
     }
 
-    Serial.print(F("\n[y] to enable, [n] to diable? "));
+    Serial.print(F("\n[y] to enable, [n] to disable? "));
     _serial_input_override_state = STATEFULL;
     return false;
   }
@@ -567,6 +606,64 @@ bool serial_set_input_overide(char *cmd)
     return true;
   }
   return false;
+}
+
+void serial_set_energy_monitor(char *cmd)
+{
+  _serial_state = SS_SET_ENERGY_MONITOR;
+
+  if (cmd == NULL)
+  {
+    Serial.print(F("\nEnable Energy monitor:"));
+    Serial.print(F("\n[y] to enable, [n] to disable? "));
+  }
+  else
+  {
+    if (cmd[0] == 'y') {
+      set_energy_monitor(true);
+      Serial.print(F("\nEnergy monitor Enabled"));
+    }
+    else
+    {
+      set_energy_monitor(false);
+      Serial.print(F("\nEnergy monitor Disabled"));
+    }
+    // Return to main menu
+    _serial_state = SS_MAIN_MENU;
+  }
+  return;
+}
+
+void serial_set_rs485_io_count(char *cmd)
+{
+  _serial_state = SS_SET_RS48_IO;
+
+  if (cmd == NULL)
+  {
+    Serial.print(F("\nEnter number of RS458 IO module attached [0-10]:"));
+  }
+  else
+  {
+    if (strlen(cmd) <= 2)
+    {
+      int count = atoi(cmd);
+      if (count >= 0 && count <= 10) {
+        Serial.println(F("\nOk - Saving count"));
+        set_rs485_io_count(count);
+      }
+      else
+      {
+        Serial.println(F("\nError: invalid entry"));
+      }
+    }
+    else
+    {
+      Serial.println(F("\nError: too long"));
+    }
+    // Return to main menu
+    _serial_state = SS_MAIN_MENU;
+  }
+  return;
 }
 
 void set_mac(byte *mac_addr)
@@ -645,8 +742,6 @@ void set_input_statefullness(int channel, bool enable)
   EEPROM.write(EEPROM_INPUT_STATEFULL, _input_statefullness);
 }
 
-
-
 void set_override_masks(int channel, uint32_t mask)
 {
   _override_masks[channel] = mask;
@@ -654,10 +749,21 @@ void set_override_masks(int channel, uint32_t mask)
     EEPROM.write(EEPROM_OVERRIDE_MASKS+(channel*4)+i, (mask >> (i*8)));
 }
 
-
 void set_override_states(int channel, uint32_t states)
 {
   _override_states[channel] = states;
   for (int i = 0; i < 4; i++)
     EEPROM.write(EEPROM_OVERRIDE_STATES+(channel*4)+i, (states >> (i*8)));
+}
+
+void set_energy_monitor(bool enable)
+{
+  _energy_monitor_enabled = enable;
+  EEPROM.write(EEPROM_ENERGY_MONITOR_ENABLE, enable);
+}
+
+void set_rs485_io_count(int count)
+{
+  _rs485_io_count = count;
+  EEPROM.write(EEPROM_RS458_IO_COUNT, count);
 }
