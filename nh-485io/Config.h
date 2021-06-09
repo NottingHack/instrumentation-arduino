@@ -38,9 +38,9 @@
 #define PIN_IO_4          A3
 #define PIN_IO_5          A4
 #define PIN_IO_0          A5
-#define RS485_RE           2
+#define RS485_DE           2
 #define PIN_IO_8           3
-#define RS485_DE           4
+#define RS485_RE           4
 #define PIN_IO_9           5
 #define PIN_IO_14          6
 #define PIN_IO_15          7
@@ -58,7 +58,7 @@
 #define EEPROM_IO_DIRECTION         1 //  2 bytes  0bit == input, 1 == output
 #define EEPROM_DEBUG                3 //  1 byte
 
-#define RS485_BAUD 9600
+#define RS485_BAUD 19200
 #define RS485_SERIAL_CONFIG SERIAL_8E1
 
 #endif

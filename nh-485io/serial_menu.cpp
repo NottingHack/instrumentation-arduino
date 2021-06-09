@@ -265,7 +265,6 @@ void serial_set_debug_level(char *cmd)
   return;
 }
 
-
 void set_modbus_address(uint8_t new_modbus_address)
 /* Write new_modbus_address to EEPROM */
 {

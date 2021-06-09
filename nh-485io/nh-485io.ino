@@ -56,6 +56,7 @@ uint8_t _debug_level = 1;
 volatile boolean _input_int_pushed;
 volatile unsigned long _input_int_pushed_time;
 uint16_t _input_state = 0;
+bool _input_state_read = false;
 volatile unsigned long _input_pushed_time[NUMBER_IO_CHANNELS];
 uint16_t _output_state = 0;
 
@@ -93,9 +94,9 @@ void read_inputs()
     if ((_direction_mask & (1UL<<(chan))) == 0) { // direction is input
       if (digitalRead(_pins[chan]) == LOW) { // LOW == Pressed button
         if ((_input_state & (1UL<<(chan))) == 0) {
-          _input_state |= (1UL<<(chan)); // set bit
+          _input_state &= ~(1UL<<(chan)); // clear bit
 
-          ModbusRTUServer.discreteInputWrite(chan, 1); // ON
+          ModbusRTUServer.discreteInputWrite(chan, 0); // ON
 
           if (_debug_level == 2) {
             sprintf(buf, "Input [%d] is Low", chan);
@@ -103,10 +104,10 @@ void read_inputs()
           }
         }
       } else {
-        if ((_input_state & (1UL<<(chan))) != 0) {
-          _input_state &= ~(1UL<<(chan)); // clear bit
+        if ((_input_state & (1UL<<(chan))) != 0 && _input_state_read) {
+          _input_state |= (1UL<<(chan)); // set bit
 
-          ModbusRTUServer.discreteInputWrite(chan, 0); // OFF
+          ModbusRTUServer.discreteInputWrite(chan, 1); // OFF
 
           if (_debug_level == 2) {
             sprintf(buf, "Input [%d] is High", chan);
@@ -117,6 +118,7 @@ void read_inputs()
     }
   }
 
+  _input_state_read = false;
   ModbusRTUServer.inputRegisterWrite(0x00, _input_state);
 }
 
@@ -198,8 +200,8 @@ void setup()
   // configure discrete inputs at address 0x00
   ModbusRTUServer.configureDiscreteInputs(0x00, NUMBER_IO_CHANNELS);
 
-  // // configure holding registers at address 0x00
-  // ModbusRTUServer.configureHoldingRegisters(0x00, 1);
+  // configure holding registers at address 0x00
+  ModbusRTUServer.configureHoldingRegisters(0x00, 1);
 
   // configure input registers at address 0x00
   ModbusRTUServer.configureInputRegisters(0x00, 1);
@@ -214,6 +216,11 @@ void loop()
 {
   // poll for Modbus RTU requests
   ModbusRTUServer.poll();
+
+  if (ModbusRTUServer.holdingRegisterRead(0) != 0L) {
+    ModbusRTUServer.holdingRegisterWrite(0, 0);
+    _input_state_read = true;
+  }
 
   // read inputs and update Modbus registers
   read_inputs();
