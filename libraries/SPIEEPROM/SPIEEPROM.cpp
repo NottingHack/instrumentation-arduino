@@ -28,7 +28,7 @@ SPIEEPROM::SPIEEPROM(byte type) {
 }
 
 void SPIEEPROM::begin(int slave_select_pin) {
-    _slave_select_pin = slave_select_pin
+    _slave_select_pin = slave_select_pin;
     pinMode(_slave_select_pin, OUTPUT);
 }
 

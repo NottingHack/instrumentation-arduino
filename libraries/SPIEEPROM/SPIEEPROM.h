@@ -61,6 +61,8 @@ class SPIEEPROM
         }
         digitalWrite(_slave_select_pin, HIGH);
         SPI.endTransaction();
+
+        return value;
     }
 
     template <typename T> T &read(long addr, T &value)
@@ -77,6 +79,8 @@ class SPIEEPROM
         }
         digitalWrite(_slave_select_pin, HIGH); //release chip, signal end transfer
         SPI.endTransaction();
+
+        return value;
     }
 };
 
