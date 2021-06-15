@@ -2,7 +2,7 @@
 # (on debian based dsitros)
 BOARD_TAG = arduino_zero_128_native
 ARDUINO_PORT = /dev/tty.usbmodem14101
-ARDUINO_LIBS = FlashStorage ArduinoModbus ArduinoRS485
+ARDUINO_LIBS = FlashStorage ArduinoModbus ArduinoRS485 WDTZero
 USER_LIB_PATH := $(realpath ../libraries)
 
 # Embed a reference to the version in the binary

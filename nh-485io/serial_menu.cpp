@@ -4,6 +4,7 @@
 #include "Arduino.h"
 #include "Config.h"
 #include "serial_menu.h"
+#include <WDTZero.h>
 
 extern uint8_t _modbus_address;
 extern uint16_t _direction_mask;
@@ -122,8 +123,13 @@ void serial_main_menu(char *cmd)
     serial_set_io_direction(NULL);
     break;
 
-  case 4: // "4 Set debug level"
+  case 4: // "[ 4 ] Set debug level"
     serial_set_debug_level(NULL);
+    break;
+
+  case 99: // "[ 99 ] Reset/reboot"
+    serial->println("Reboot....");
+    Watchdog.reboot(); // Watchdog abuse...
     break;
 
   default:
@@ -143,6 +149,7 @@ void serial_show_main_menu()
   serial->println(F("2 Set MODBUS Address"));
   serial->println(F("3 Set IO Direction Mask"));
   serial->println(F("4 Set debug level"));
+  serial->println(F("99 Reset/reboot"));
   serial->print(F("Enter selection: "));
 }
 

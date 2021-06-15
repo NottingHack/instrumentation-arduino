@@ -48,6 +48,7 @@
 #include <avr/pgmspace.h>
 #include <ArduinoRS485.h>
 #include <ArduinoModbus.h>
+#include <WDTZero.h>
 
 uint8_t _modbus_address = 10;
 uint16_t _direction_mask = 0x0000;
@@ -158,6 +159,8 @@ void set_outputs()
 
 void setup()
 {
+  Watchdog.setup(WDT_OFF);
+
   dbg_init();
   delay(4000);
 
@@ -206,6 +209,8 @@ void setup()
   // configure input registers at address 0x00
   ModbusRTUServer.configureInputRegisters(0x00, 1);
 
+  Watchdog.setup(WDT_HARDCYCLE8S);
+
   dbg_println(F("Setup done..."));
 
   Serial.println();
@@ -214,8 +219,12 @@ void setup()
 
 void loop()
 {
+  Watchdog.clear();
+
   // poll for Modbus RTU requests
   ModbusRTUServer.poll();
+
+  Watchdog.clear();
 
   if (ModbusRTUServer.holdingRegisterRead(0x00) != 0 && _input_state_read != true) {
     if (_debug_level == 2) {
