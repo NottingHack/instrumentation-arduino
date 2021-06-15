@@ -25,3 +25,6 @@
 [submodule "libraries/ArduinoRS485"]
 	path = libraries/ArduinoRS485
 	url = git@github.com:arduino-libraries/ArduinoRS485.git
+[submodule "libraries/WDTZero"]
+	path = libraries/WDTZero
+	url = git@github.com:dpslwk/WDTZero.git
