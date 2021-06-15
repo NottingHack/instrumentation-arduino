@@ -17,6 +17,7 @@
 
 SPIEEPROM::SPIEEPROM() {
     eeprom_type = 0;
+    _page_boundry = SPI_EEPROM_DEFAULT_PAGE_BOUNDERY;
 }
 
 SPIEEPROM::SPIEEPROM(byte type) {
@@ -27,9 +28,18 @@ SPIEEPROM::SPIEEPROM(byte type) {
     }
 }
 
+SPIEEPROM::SPIEEPROM(byte type, int page_boundry): _page_boundry(page_boundry) {
+    if (type>1) {
+        eeprom_type = 0;
+    } else {
+        eeprom_type = type;
+    }
+}
+
 void SPIEEPROM::begin(int slave_select_pin) {
     _slave_select_pin = slave_select_pin;
     pinMode(_slave_select_pin, OUTPUT);
+    digitalWrite(_slave_select_pin, HIGH);
 }
 
 void SPIEEPROM::send_address(long addr) {
