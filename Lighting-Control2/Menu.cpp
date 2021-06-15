@@ -119,7 +119,7 @@ void serial_process(char *cmd)
   }
   else if (_serial_state == SS_SET_INPUT_OVERRIDE)
   {
-    if (serial_set_input_overide(cmd))
+    if (serial_set_input_override(cmd))
       serial_main_menu("0");
   }
 }
@@ -157,8 +157,8 @@ void serial_main_menu(char *cmd)
     serial_set_topic(NULL);
     break;
 
-  case 7: // [ 7 ] Set input overide enables
-    serial_set_input_overide(NULL);
+  case 7: // [ 7 ] Set input override enables
+    serial_set_input_override(NULL);
     break;
 
   case 8: // "[ 8 ] Reset/reboot"
@@ -186,7 +186,7 @@ void serial_show_main_menu()
   Serial.println(F("[ 4 ] Set server IP address"));
   Serial.println(F("[ 5 ] Set name"));
   Serial.println(F("[ 6 ] Set base topic"));
-  Serial.println(F("[ 7 ] Set input overide"));
+  Serial.println(F("[ 7 ] Set input override"));
   Serial.println(F("[ 8 ] Reset/reboot"));
   Serial.print(F("Enter selection: "));
 }
@@ -406,7 +406,7 @@ void serial_set_topic(char *cmd)
   return;
 }
 
-bool serial_set_input_overide(char *cmd)
+bool serial_set_input_override(char *cmd)
 /* set a single input mask */
 {
   _serial_state = SS_SET_INPUT_OVERRIDE;

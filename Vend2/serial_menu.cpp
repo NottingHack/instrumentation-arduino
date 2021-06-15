@@ -31,17 +31,17 @@ void serial_menu_init()
     // Read settings from eeprom
     for (int i = 0; i < 6; i++)
       _mac[i] = EEPROM.read(EEPROM_MAC+i);
-  
+
     for (int i = 0; i < 4; i++)
       _myip[i] = EEPROM.read(EEPROM_IP+i);
-  
+
     for (int i = 0; i < 4; i++)
       _serverip[i] = EEPROM.read(EEPROM_SERVER_IP+i);
-  
+
     for (int i = 0; i < 40; i++)
       _base_topic[i] = EEPROM.read(EEPROM_BASE_TOPIC+i);
     _base_topic[40] = '\0';
-  
+
     for (int i = 0; i < 20; i++)
       _dev_name[i] = EEPROM.read(EEPROM_NAME+i);
     _dev_name[20] = '\0';
@@ -97,9 +97,9 @@ void serial_menu()
     if ((c=='\n') || (c=='\r'))
     {
       /* CR/LF detected (enter pressed), so process the serial input */
-      serial_process(serial_line); 
+      serial_process(serial_line);
       i = 0;
-    } 
+    }
     else if (i < (sizeof(serial_line)-1))
     {
       serial_line[i++] = c;
@@ -115,24 +115,24 @@ void serial_process(char *cmd)
     serial_main_menu(cmd);
   else if (_serial_state == SS_SET_MAC)
   {
-    serial_set_mac(cmd);  
+    serial_set_mac(cmd);
     serial_main_menu("0");
   }
   else if (_serial_state == SS_SET_IP)
   {
-    serial_set_ip(cmd);  
+    serial_set_ip(cmd);
     serial_main_menu("0");
   }
   else if (_serial_state == SS_SET_NAME)
   {
-    serial_set_name(cmd);  
+    serial_set_name(cmd);
     serial_main_menu("0");
   }
   else if (_serial_state == SS_SET_TOPIC)
   {
-    serial_set_topic(cmd);  
+    serial_set_topic(cmd);
     serial_main_menu("0");
-  } 
+  }
   else if (_serial_state == SS_SET_SERVER_IP)
   {
     serial_set_server_ip(cmd);
@@ -172,11 +172,11 @@ void serial_main_menu(char *cmd)
 
   case 5: // "[ 5 ] Set name"
     serial_set_name(NULL);
-    break;    
+    break;
 
   case 6: // "[ 6 ] Set base topic"
     serial_set_topic(NULL);
-    break;    
+    break;
 
   case 7: // "7 Set debug level"
     serial_set_debug_level(NULL);
@@ -226,7 +226,7 @@ void serial_show_settings()
   serial->println(buf);
 
   serial->print(F("Name: "));
-  serial->println(_dev_name);  
+  serial->println(_dev_name);
 
   serial->print(F("Base topic: "));
   serial->println(_base_topic);
@@ -245,7 +245,7 @@ void serial_set_mac(char *cmd)
   if (cmd == NULL)
   {
     serial->print(F("\nEnter MAC:"));
-  } 
+  }
   else
   {
     // MAC address entered - validate
@@ -254,7 +254,7 @@ void serial_set_mac(char *cmd)
     {
       serial->println(F("\nOk - Saving MAC"));
       set_mac(mac_addr);
-    } 
+    }
     else
     {
       serial->println(F("\nInvalid MAC"));
@@ -278,7 +278,7 @@ void serial_set_ip(char *cmd)
   if (cmd == NULL)
   {
     serial->print(F("\nEnter IP:"));
-  } 
+  }
   else
   {
     // IP address entered - validate
@@ -286,7 +286,7 @@ void serial_set_ip(char *cmd)
     if (c != 4)
     {
       ip_good = false;
-    } 
+    }
     else
     {
       for (int i=0; i < 4; i++)
@@ -298,7 +298,7 @@ void serial_set_ip(char *cmd)
     {
       serial->println(F("\nOk - Saving IP"));
       set_ip(ip_addr);
-    } 
+    }
     else
     {
       serial->println(F("\nInvalid IP"));
@@ -321,7 +321,7 @@ void serial_set_server_ip(char *cmd)
   if (cmd == NULL)
   {
     serial->print(F("\nEnter server IP:"));
-  } 
+  }
   else
   {
     // IP address entered - validate
@@ -329,7 +329,7 @@ void serial_set_server_ip(char *cmd)
     if (c != 4)
     {
       ip_good = false;
-    } 
+    }
     else
     {
       for (int i=0; i < 4; i++)
@@ -341,7 +341,7 @@ void serial_set_server_ip(char *cmd)
     {
       serial->println(F("\nOk - Saving IP"));
       set_server_ip(ip_addr);
-    } 
+    }
     else
     {
       serial->println(F("\nInvalid IP"));
@@ -360,14 +360,14 @@ void serial_set_name(char *cmd)
   if (cmd == NULL)
   {
     serial->print(F("\nEnter dev name:"));
-  } 
+  }
   else
   {
     if (strlen(cmd) > 2)
     {
       serial->println(F("\nOk - Saving"));
       set_name(cmd);
-    } 
+    }
     else
     {
       serial->println(F("\nError: too short"));
@@ -386,7 +386,7 @@ void serial_set_topic(char *cmd)
   if (cmd == NULL)
   {
     serial->print(F("\nEnter base topic:"));
-  } 
+  }
   else
   {
     if (strlen(cmd) > 2)
@@ -413,7 +413,7 @@ void serial_set_debug_level(char *cmd)
   if (cmd == NULL)
   {
     serial->print(F("\nEnter debug level (0=no debug, 1=basic, 2=comms trace): "));
-  } 
+  }
   else
   {
     if (strlen(cmd) == 1)
@@ -447,8 +447,8 @@ void set_mac(unsigned int *mac_addr)
 {
   for (int i = 0; i < 6; i++)
   {
-   EEPROM.write(EEPROM_MAC+i, mac_addr[i]);
-   _mac[i] = mac_addr[i];
+    EEPROM.write(EEPROM_MAC+i, mac_addr[i]);
+    _mac[i] = mac_addr[i];
   }
   EEPROM.commit();
 }

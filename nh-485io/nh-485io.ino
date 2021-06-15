@@ -56,7 +56,7 @@ uint8_t _debug_level = 1;
 volatile boolean _input_int_pushed;
 volatile unsigned long _input_int_pushed_time;
 uint16_t _input_state = 0;
-bool _input_state_read = false;
+bool _input_state_read = true;
 volatile unsigned long _input_pushed_time[NUMBER_IO_CHANNELS];
 uint16_t _output_state = 0;
 
@@ -93,7 +93,7 @@ void read_inputs()
   for (int chan = 0; chan < NUMBER_IO_CHANNELS; chan++) {
     if ((_direction_mask & (1UL<<(chan))) == 0) { // direction is input
       if (digitalRead(_pins[chan]) == LOW) { // LOW == Pressed button
-        if ((_input_state & (1UL<<(chan))) == 0) {
+        if ((_input_state & (1UL<<(chan))) != 0) {
           _input_state &= ~(1UL<<(chan)); // clear bit
 
           ModbusRTUServer.discreteInputWrite(chan, 0); // ON
@@ -104,7 +104,7 @@ void read_inputs()
           }
         }
       } else {
-        if ((_input_state & (1UL<<(chan))) != 0 && _input_state_read) {
+        if ((_input_state & (1UL<<(chan))) == 0 && _input_state_read) {
           _input_state |= (1UL<<(chan)); // set bit
 
           ModbusRTUServer.discreteInputWrite(chan, 1); // OFF
@@ -147,7 +147,7 @@ void set_outputs()
           digitalWrite(_pins[chan], LOW);
 
           if (_debug_level == 2) {
-            sprintf(buf, "Output [%d] set High", chan);
+            sprintf(buf, "Output [%d] set Low", chan);
             dbg_println(buf);
           }
         }
@@ -187,7 +187,7 @@ void setup()
     } else {
         pinMode(_pins[chan], INPUT_PULLUP);
         digitalWrite(_pins[chan], HIGH);
-        attachInterrupt(digitalPinToInterrupt(_pins[chan]), input_interrupt, FALLING);
+        // attachInterrupt(digitalPinToInterrupt(_pins[chan]), input_interrupt, FALLING);
 
         sprintf(buf, "Pin I%d Input", chan);
         dbg_println(buf);
@@ -217,8 +217,11 @@ void loop()
   // poll for Modbus RTU requests
   ModbusRTUServer.poll();
 
-  if (ModbusRTUServer.holdingRegisterRead(0) != 0L) {
-    ModbusRTUServer.holdingRegisterWrite(0, 0);
+  if (ModbusRTUServer.holdingRegisterRead(0x00) != 0 && _input_state_read != true) {
+    if (_debug_level == 2) {
+      dbg_println("Holding not zero received");
+    }
+    ModbusRTUServer.holdingRegisterWrite(0x00, 0);
     _input_state_read = true;
   }
 

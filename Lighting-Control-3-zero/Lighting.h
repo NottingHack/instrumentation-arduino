@@ -27,14 +27,12 @@ boolean set_dev_state(dev_state_t new_state);
 void check_buttons();
 void check_rs485_inputs();
 void send_action(const char *act, char *msg);
-void dbg_println(const __FlashStringHelper *n);
-void dbg_println(const char *msg);
 
 // IP of MQTT server
 byte _server[4];
 
-char _base_topic[41];
-char _dev_name [21];
+char _base_topic[40];
+char _dev_name[20];
 
 // MAC / IP address of device
 byte _mac[6];
@@ -48,13 +46,9 @@ uint8_t _input_statefullness;
 
 bool _energy_monitor_enabled;
 uint8_t _rs485_io_count;
-uint8_t _rs485_io_input_enables[10];
-uint32_t _rs485_io_override_masks[10][4];
-uint32_t _rs485_io_override_states[10][4];
-uint8_t _rs485_io_input_statefullness[10];
-
-serial_state_t _serial_state;
-
-bool _disable_serial = false;
+uint16_t _rs485_io_input_enables[10];
+uint32_t _rs485_io_override_masks[10][16];
+uint32_t _rs485_io_override_states[10][16];
+uint16_t _rs485_io_input_statefullness[10];
 
 #endif

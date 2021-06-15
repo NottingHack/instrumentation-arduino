@@ -20,7 +20,7 @@ void set_ip(int *ip_addr);
 void set_server_ip(int *ip_addr);
 void set_name(char *new_name);
 void set_topic(char *new_topic);
-bool serial_set_input_overide(char *cmd);
+bool serial_set_input_override(char *cmd);
 void set_input_enables(int channel, bool enable);
 void set_override_masks(int channel, uint32_t mask);
 void set_override_states(int channel, uint32_t states);

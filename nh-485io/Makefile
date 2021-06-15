@@ -1,7 +1,7 @@
 # TO use this Makefile to build the code in this directory, install the arduino-mk package
 # (on debian based dsitros)
-BOARD_TAG = arduino_zero_native
-ARDUINO_PORT = /dev/tty.usbmodem14501
+BOARD_TAG = arduino_zero_128_native
+ARDUINO_PORT = /dev/tty.usbmodem14101
 ARDUINO_LIBS = FlashStorage ArduinoModbus ArduinoRS485
 USER_LIB_PATH := $(realpath ../libraries)
 

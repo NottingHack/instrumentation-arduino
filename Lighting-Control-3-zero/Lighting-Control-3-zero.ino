@@ -46,22 +46,20 @@
 #include <SPI.h>
 #include <Ethernet.h>
 #include <PubSubClient.h>
-#include <SPIEEPROM.h>
-#include <avr/wdt.h>
+
+// #include <avr/wdt.h>
 #include <ArduinoRS485.h>
 #include <ArduinoModbus.h>
 #include "Config.h"
 #include "Lighting.h"
 #include "Menu.h"
+#include "debug.h"
 
 
 EthernetClient _ethClient;
 PubSubClient *_client;
-SPIEEPROM eeprom;
 
 dev_state_t    _dev_state;
-
-char _pmsg[DMSG];
 
 volatile boolean _input_int_pushed;
 volatile unsigned long _input_int_pushed_time;
@@ -189,11 +187,7 @@ void handle_state(char* channel, byte* payload, int length)
 
 void update_outputs(int chan)
 {
-  if (chan >= 24) {
-    Wire.beginTransmission(PCF_BASE_ADDRESS | ((chan/8)+1));
-  } else {
-    Wire.beginTransmission(PCF_BASE_ADDRESS | (chan/8));
-  }
+  Wire.beginTransmission(PCF_BASE_ADDRESS | (chan/8));
   Wire.write((uint8_t)(_output_state >> (((uint32_t)chan/8UL)*8UL)));
   Wire.endTransmission();
 }
@@ -201,7 +195,7 @@ void update_outputs(int chan)
 void read_inputs()
 {
   uint8_t old_input = _input_state;
-  Wire.requestFrom(PCF_BASE_ADDRESS | 3 , 1);
+  Wire.requestFrom(PCF_INPUT_ADDRESS , 1);
   _input_state = Wire.read();
 
   // find out which input has changed if any
@@ -252,7 +246,7 @@ void read_inputs()
 
 void publish_all_input_states()
 {
-  Wire.requestFrom(PCF_BASE_ADDRESS | 3 , 1);
+  Wire.requestFrom(PCF_INPUT_ADDRESS , 1);
   _input_state = Wire.read();
 
   for (int i = 0; i < 8; ++i)
@@ -261,9 +255,13 @@ void publish_all_input_states()
     publish_input_state(i);
   }
 
-  for (int node = 0; node < _rs485_io_count; node++)
-    for (int i = 0; i < 16; i++)
-      publish_rs485_input_state(node, i);
+  if (_rs485_io_count > 0 && _rs485_io_count <=10) {
+    for (int node = 0; node < _rs485_io_count; node++) {
+      for (int i = 0; i < 16; i++) {
+        publish_rs485_input_state(node, i);
+      }
+    }
+  }
 }
 
 void publish_input_state(int channel)
@@ -359,7 +357,7 @@ void checkMQTT()
         send_action("RESET", "BOOT");
         first_connect = false;
         set_dev_state(DEV_IDLE);
-        dbg_println("Boot->idle");
+        dbg_println(F("Boot->idle"));
       }
       else
       {
@@ -378,77 +376,38 @@ void checkMQTT()
 
 void setup()
 {
-  wdt_disable();
+  // wdt_disable();
+
+  pinMode(PIN_LED_0, OUTPUT);
+  pinMode(PIN_LED_1, OUTPUT);
+  pinMode(PIN_LED_2, OUTPUT);
+  pinMode(PIN_LED_3, OUTPUT);
+  pinMode(PIN_INPUT_INT, INPUT);
+  pinMode(EM_SO, INPUT);
+  pinMode(SPI_EEPROM_SS, HIGH);
+  pinMode(10, HIGH);
+
+  digitalWrite(PIN_LED_0, HIGH);
+  digitalWrite(PIN_LED_1, HIGH);
+  digitalWrite(PIN_LED_2, HIGH);
+  digitalWrite(PIN_LED_3, HIGH);
+  digitalWrite(PIN_INPUT_INT, HIGH);
+  digitalWrite(SPI_EEPROM_SS, HIGH);
+  digitalWrite(10, HIGH);
+
+  dbg_init();
+  delay(4000);
 
   // for I2C port expanders
   Wire.begin();
-
-  char build_ident[17]="";
-  Serial.begin(RS485_BAUD);
-  dbg_println(F("Start!"));
-  _serial_state = SS_MAIN_MENU;
-  set_dev_state(DEV_NO_CONN);
-
-  pinMode(PIN_LED0, OUTPUT);
-  pinMode(PIN_LED1, OUTPUT);
-  pinMode(PIN_LED2, OUTPUT);
-  pinMode(PIN_LED3, OUTPUT);
-  pinMode(PIN_INPUT_INT, INPUT);
-
-  digitalWrite(PIN_LED0, HIGH);
-  digitalWrite(PIN_LED1, HIGH);
-  digitalWrite(PIN_LED2, HIGH);
-  digitalWrite(PIN_LED3, HIGH);
-  digitalWrite(PIN_INPUT_INT, HIGH);
-
   dbg_println(F("Init SPI"));
   SPI.begin();
 
-  // Read settings from eeprom
-  for (int i = 0; i < 6; i++)
-    _mac[i] = EEPROM.read(EEPROM_MAC+i);
+  serial_menu_init(); // Also reads in network config from EEPROM
 
-  for (int i = 0; i < 4; i++)
-    _ip[i] = EEPROM.read(EEPROM_IP+i);
-
-  for (int i = 0; i < 4; i++)
-    _server[i] = EEPROM.read(EEPROM_SERVER_IP+i);
-
-  for (int i = 0; i < 40; i++)
-    _base_topic[i] = EEPROM.read(EEPROM_BASE_TOPIC+i);
-  _base_topic[40] = '\0';
-
-  for (int i = 0; i < 20; i++)
-    _dev_name[i] = EEPROM.read(EEPROM_NAME+i);
-  _dev_name[20] = '\0';
-
-  _input_enables = EEPROM.read(EEPROM_INPUT_ENABLES);
-
-  for (int i = 0; i < 8; i++) {
-    for (int j = 0; j < 4; j++) {
-      _override_masks[i] |= (uint32_t)EEPROM.read(EEPROM_OVERRIDE_MASKS+(i*4)+j) << (j*8);
-      _override_states[i] |= (uint32_t)EEPROM.read(EEPROM_OVERRIDE_STATES+(i*4)+j) << (j*8);
-    }
-  }
-
-  _input_statefullness = EEPROM.read(EEPROM_INPUT_STATEFULL);
-
-  _energy_monitor_enabled = EEPROM.read(EEPROM_ENERGY_MONITOR_ENABLE);
-
-  _rs485_io_count = EEPROM.read(EEPROM_RS458_IO_COUNT);
-
-  for (int i = 0; i < 10; i++) {
-    _rs485_io_input_enables[i] = EEPROM.read(EEPROM_RS485_INPUT_ENABLES+i);
-
-    for (int j = 0; j < 4; j++) {
-      for (int k = 0; k < 4; k++) {
-        _rs485_io_override_masks[i][j] |= (uint32_t)EEPROM.read(EEPROM_RS485_OVERRIDE_MASKS+(i*4)+(j*4)+k) << (k*8);
-        _rs485_io_override_states[i][j] |= (uint32_t)EEPROM.read(EEPROM_RS485_OVERRIDE_STATES+(i*4)+(j*4)+k) << (k*8);
-      }
-    }
-
-    _rs485_io_input_statefullness[i] = EEPROM.read(EEPROM_RS485_INPUT_STATEFULL+i);
-  }
+  char build_ident[17]="";
+  dbg_println(F("Start!"));
+  set_dev_state(DEV_NO_CONN);
 
   sprintf(tool_topic, "%s/%s", _base_topic, _dev_name);
 
@@ -467,7 +426,7 @@ void setup()
   _input_int_pushed = false;
   _input_int_pushed_time = 0;
 
-  attachInterrupt(0, input_int, FALLING); // int0 = PIN_INPUT_INT
+  attachInterrupt(digitalPinToInterrupt(PIN_INPUT_INT), input_int, FALLING); // int0 = PIN_INPUT_INT
 
   delay(100);
 
@@ -475,37 +434,39 @@ void setup()
 
   dbg_println(F("Setup done..."));
 
-  Serial.println();
+  dbg_println();
   serial_show_main_menu();
 
-  uint32_t menuTimeout = millis();
-  while ((millis() - menuTimeout) < MENU_TIMEOUT) {
-    if (Serial.available() > 0) {
-      menuTimeout = millis();
-    }
-
-    // Do serial menu
-    serial_menu();
-
-    state_led_loop();
-  }
-
-  dbg_println(F("Serial Disabled"));
-
-  wdt_enable(WDTO_8S);
+  // wdt_enable(WDTO_8S);
 
   // read and bin the input port expander to clear any old interrupt
-  Wire.requestFrom(PCF_BASE_ADDRESS | 3 , 1);
+  Wire.requestFrom(PCF_INPUT_ADDRESS , 1);
   Wire.read();
 
   RS485.setPins(RS485_DEFAULT_TX_PIN, RS485_DE, RS485_RE);
   // start the Modbus RTU client
   if (!ModbusRTUClient.begin(RS485_BAUD, RS485_SERIAL_CONFIG)) {
     dbg_println(F("Failed to start Modbus RTU Client!"));
-    while (1);
+    while (1) {
+      digitalWrite(PIN_LED_3, HIGH);
+      delay(300);
+      digitalWrite(PIN_LED_3, LOW);
+      delay(300);
+      digitalWrite(PIN_LED_3, HIGH);
+      delay(300);
+      digitalWrite(PIN_LED_3, LOW);
+      delay(300);
+      digitalWrite(PIN_LED_3, HIGH);
+      delay(300);
+      digitalWrite(PIN_LED_3, LOW);
+      delay(1000);
+    }
   }
 
-  _disable_serial = true;
+  // digitalWrite(PIN_LED_0, LOW);
+  // digitalWrite(PIN_LED_1, LOW);
+  // digitalWrite(PIN_LED_2, LOW);
+  // digitalWrite(PIN_LED_3, LOW);
 } // end void setup()
 
 void input_int()
@@ -529,12 +490,12 @@ void state_led_loop()
         if (led_on)
         {
           led_on = false;
-          digitalWrite(PIN_LED0, LOW);
+          digitalWrite(PIN_LED_0, LOW);
         }
         else
         {
           led_on = true;
-          digitalWrite(PIN_LED0, HIGH);
+          digitalWrite(PIN_LED_0, HIGH);
         }
       }
       break;
@@ -543,7 +504,7 @@ void state_led_loop()
       if (!led_on)
       {
         led_on = true;
-        digitalWrite(PIN_LED0, HIGH);
+        digitalWrite(PIN_LED_0, HIGH);
       }
       break;
   }
@@ -551,7 +512,9 @@ void state_led_loop()
 
 void loop()
 {
-  wdt_reset();
+  digitalWrite(PIN_LED_1, LOW);
+
+  // wdt_reset();
 
   // Poll MQTT
   // should cause callback if there's a new message
@@ -561,10 +524,11 @@ void loop()
   checkMQTT();
 
   // Do serial menu
-  // serial_menu();
+  serial_menu();
 
   // Check if any buttons have been pushed
   check_buttons();
+  digitalWrite(PIN_LED_1, HIGH);
 
   check_rs485_inputs();
 
@@ -629,34 +593,53 @@ void check_buttons()
 
 void check_rs485_inputs()
 {
+  static uint32_t last_rs485_read;
+  static uint8_t node;
   uint16_t old_rs485_input_state;
   int16_t input_read;
 
-  for (int node = 0; node < _rs485_io_count; node++) {
+
+  if (_rs485_io_count < 1 || _rs485_io_count > 10)
+    return;
+
+  if ((millis() - last_rs485_read) < RS485_READ_INTERVAL) {
+    return;
+  }
+
+  if (node >= _rs485_io_count)
+    node = 0;
+
+  for (int node = 0; node < _rs485_io_count; node++)
+  {
     old_rs485_input_state = _rs485_io_input_state[node];
+
+    digitalWrite(PIN_LED_3, LOW);
     input_read = ModbusRTUClient.inputRegisterRead(10+node, 0x00);
+    digitalWrite(PIN_LED_3, HIGH);
 
     if (input_read == -1) {
+      digitalWrite(PIN_LED_2, LOW);
       continue;
     }
+    digitalWrite(PIN_LED_2, HIGH);
 
     _rs485_io_input_state[node] = input_read;
 
     // find out which input has changed if any
     for (int input_channel = 0; input_channel < 16; ++input_channel)
     {
-      if ((old_rs485_input_state & ( 1 << input_channel )) != ((uint16_t) input_read & ( 1 << input_channel )) )
+      if ((old_rs485_input_state & ( 1UL << input_channel )) != ((uint16_t) input_read & ( 1UL << input_channel )) )
       {
         publish_rs485_input_state(node, input_channel);
         // check input mapping and update outputs
-        if (!(input_read & ( 1 << input_channel ))) // low == pressed
+        if (!(input_read & ( 1UL << input_channel ))) // low == pressed
         {
-          if ((_rs485_io_input_enables[node] & (1<<input_channel)) == 0)
+          if ((_rs485_io_input_enables[node] & (1UL<<input_channel)) == 0)
           {
             uint32_t _override_state = _rs485_io_override_states[node][input_channel];
             // if we are tracking the state of this input pin is enabled (low == enabled)
             // and this the second press
-            if (((_rs485_io_input_statefullness[node] & (1<<input_channel)) == 0) && ((_rs485_io_input_state_tracking[node] & (1<<input_channel)) != 0))
+            if (((_rs485_io_input_statefullness[node] & (1UL<<input_channel)) == 0) && ((_rs485_io_input_state_tracking[node] & (1UL<<input_channel)) != 0))
             {
               // flip the output state requests
               _override_state = ~_override_state;
@@ -680,11 +663,17 @@ void check_rs485_inputs()
           }
 
           // toggle tracking state bit for this input pin
-          _rs485_io_input_state_tracking[node] ^= 1 << input_channel;
+          _rs485_io_input_state_tracking[node] ^= (1UL << input_channel);
         }
       }
     }
+
+    // clear the input latch on the node
+    ModbusRTUClient.holdingRegisterWrite(10+node, 0x00, 1);
   }
+
+  node++;
+  last_rs485_read = millis();
 }
 
 // Publish <msg> to topic "<tool_topic>/<act>"
@@ -696,47 +685,3 @@ void send_action(const char *act, char *msg)
   _client->publish(tool_topic, msg);
   tool_topic[tt_len] = '\0';
 }
-
-void dbg_println(const __FlashStringHelper *n)
-{
-  uint8_t c;
-  byte *payload;
-  char *pn = (char*)n;
-
-  memset(_pmsg, 0, sizeof(_pmsg));
-  strcpy(_pmsg, "INFO:");
-  payload = (byte*)_pmsg + sizeof("INFO");
-
-  while ((c = pgm_read_byte_near(pn++)) != 0)
-    *(payload++) = c;
-
-#ifdef DEBUG_MQTT
-  //  _client.publish(P_NOTE_TX, _pmsg);
-#endif
-
-  if (_disable_serial) {
-    return;
-  }
-
-  Serial.println(_pmsg+sizeof("INFO"));
-}
-
-void dbg_println(const char *msg)
-{/*
-  byte *payload;
-
- memset(_pmsg, 0, sizeof(_pmsg));
- strcpy(_pmsg, "INFO:");
- strcat(_pmsg, msg);
- payload = (byte*)_pmsg + sizeof("INFO");
-
- Serial.println(_pmsg+sizeof("INFO"));
- */
-
-  if (_disable_serial) {
-    return;
-  }
-
-  Serial.println(msg);
-}
-

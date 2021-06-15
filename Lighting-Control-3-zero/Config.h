@@ -30,16 +30,18 @@
 #ifndef LIGHTING_CONTROL_CONFIG_H
 #define LIGHTING_CONTROL_CONFIG_H
 
+#include "Arduino.h"
+
 // #define BUILD_IDENT "IDE"
 
 // Serial EM RS485
 // Serial1 RS485IO
 
 /* Pin assigments */
-#define PIN_LED0          A0
-#define PIN_LED1          A1
-#define PIN_LED2          A2
-#define PIN_LED3          A3
+#define PIN_LED_0          A0
+#define PIN_LED_1          A1
+#define PIN_LED_2          A2
+#define PIN_LED_3          A3
 //      N/C               A4
 //      N/C               A5
 #define RS485_RE           2
@@ -57,23 +59,37 @@
 
 
 // Locations in EEPROM of various settings
-#define EEPROM_MAC                      0   //   6 bytes
-#define EEPROM_IP                       6   //   4 bytes
-#define EEPROM_BASE_TOPIC               10  //  40 bytes   e.g. "nh/tools/"
-#define EEPROM_NAME                     50  //  20 bytes   e.g. "laser"
-#define EEPROM_SERVER_IP                70  //   4 bytes
-#define EEPROM_INPUT_ENABLES            74  //   1 bytes   0bit == enabled, 1 == disabled
-#define EEPROM_OVERRIDE_MASKS           75  //  32 bytes   4 bytes per 8 inputs
-#define EEPROM_OVERRIDE_STATES          107 //  32 bytes   4 bytes per 8 inputs
-#define EEPROM_INPUT_STATEFULL          139 //   1 bytes   0bit == enabled, 1 == disabled
-#define EEPROM_ENERGY_MONITOR_ENABLE    140 //   1 bytes
-#define EEPROM_RS458_IO_COUNT           141 //   1 bytes
-#define EEPROM_RS485_INPUT_ENABLES      142 //  10 bytes   1 bytes per io modules (x10) 0bit == enabled, 1 == disabled
-#define EEPROM_RS485_OVERRIDE_MASKS     152 // 640 bytes   4 bytes per 16 inputs per io module (x10)
-#define EEPROM_RS485_OVERRIDE_STATES    792 // 640 bytes   4 bytes per 16 inputs per io module (x10)
-#define EEPROM_RS485_INPUT_STATEFULL    1432 //  10 bytes   1 bytes per io modules (x10) 0bit == enabled, 1 == disabled
-// #define EEPROM_                         1442 // 606 left
+#define EEPROM_MAC                      0UL   //   6 bytes
+#define EEPROM_IP                       6UL   //   4 bytes
+#define EEPROM_BASE_TOPIC               10UL  //  40 bytes   e.g. "nh/tools/"
+#define EEPROM_NAME                     50UL  //  20 bytes   e.g. "laser"
+#define EEPROM_SERVER_IP                70UL  //   4 bytes
+#define EEPROM_INPUT_ENABLES            74UL  //   1 bytes   0bit == enabled, 1 == disabled
+#define EEPROM_OVERRIDE_MASKS           75UL  //  32 bytes   4 bytes per 8 inputs
+#define EEPROM_OVERRIDE_STATES          107UL //  32 bytes   4 bytes per 8 inputs
+#define EEPROM_INPUT_STATEFULL          139UL //   1 bytes   0bit == enabled, 1 == disabled
+#define EEPROM_ENERGY_MONITOR_ENABLE    140UL //   1 bytes
+#define EEPROM_RS458_IO_COUNT           141UL //   1 bytes
+#define EEPROM_RS485_INPUT_ENABLES      142UL //  20 bytes   2 bytes per io modules (x10) 0bit == enabled, 1 == disabled
+#define EEPROM_RS485_OVERRIDE_MASKS     162UL // 640 bytes   4 bytes per 16 inputs per io module (x10)
+#define EEPROM_RS485_OVERRIDE_STATES    802UL // 640 bytes   4 bytes per 16 inputs per io module (x10)
+#define EEPROM_RS485_INPUT_STATEFULL    1442UL //  20 bytes   2 bytes per io modules (x10) 0bit == enabled, 1 == disabled
+#define EEPROM_VALID                    1462UL //  1 bytes
+// #define EEPROM_                         1463 // 585 left @ 2K, 2681 @ 4K
 
+
+/***************
+ *** Network ***
+ ***************/
+
+// Network config defaults - can be overridden using serial menu
+uint8_t const _default_mac[6]       = {0xB8, 0xFC, 0xBF, 0x87, 0x52, 0x68};
+uint8_t const _default_ip[4]        = {192,168,15,230}; // C0 A8 0f E6
+uint8_t const _default_server_ip[4] = {192,168,15,170}; // C0 A8 0f AA
+#define       DEFAULT_BASE_TOPIC   "nh/li" // 6e 68 2f 6c 69
+#define       DEFAULT_NAME         "test" // 74 65 73 74
+
+// MQTT stuff
 #define MQTT_PORT 1883
 
 // Status Topic, use to say we are alive or DEAD (will)
@@ -81,21 +97,15 @@
 #define P_STATUS "nh/status/res"
 #define STATUS_STRING "STATUS"
 
-const char sON[] PROGMEM = "ON";
-const char sOFF[] PROGMEM = "OFF";
-const char sTOGGLE[] PROGMEM = "TOGGLE";
+const char sON[] = "ON";
+const char sOFF[] = "OFF";
+const char sTOGGLE[] = "TOGGLE";
 
 // PCF8574
 // #define PCF_BASE_ADDRESS 0x20
 // PCF8574A (we have these :/)
 #define PCF_BASE_ADDRESS 0x38
-
-// Debug output destinations
-#define DEBUG_MQTT
-#define DEBUG_SERIAL
-
-// buffer size
-#define DMSG  50
+#define PCF_INPUT_ADDRESS (PCF_BASE_ADDRESS | 7)
 
 // How fast the state LED should flash when not connected (lower = faster)
 #define STATE_FLASH_FREQ  1000
@@ -104,20 +114,6 @@ const char sTOGGLE[] PROGMEM = "TOGGLE";
 
 #define RS485_BAUD 19200
 #define RS485_SERIAL_CONFIG SERIAL_8E1
-
-// Serial/config menu current position
-enum serial_state_t
-{
-  SS_MAIN_MENU,
-  SS_SET_MAC,
-  SS_SET_IP,
-  SS_SET_NAME,
-  SS_SET_TOPIC,
-  SS_SET_SERVER_IP,
-  SS_SET_INPUT_OVERRIDE,
-  SS_SET_ENERGY_MONITOR,
-  SS_SET_RS48_IO,
-  SS_SET_RS48_IO_INPUT_OVERRIDE
-};
+#define RS485_READ_INTERVAL 20
 
 #endif
