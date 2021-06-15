@@ -47,9 +47,9 @@
 #include <Ethernet.h>
 #include <PubSubClient.h>
 
-// #include <avr/wdt.h>
 #include <ArduinoRS485.h>
 #include <ArduinoModbus.h>
+#include <WDTZero.h>
 #include "Config.h"
 #include "Lighting.h"
 #include "Menu.h"
@@ -376,7 +376,7 @@ void checkMQTT()
 
 void setup()
 {
-  // wdt_disable();
+  Watchdog.setup(WDT_OFF);
 
   pinMode(PIN_LED_0, OUTPUT);
   pinMode(PIN_LED_1, OUTPUT);
@@ -437,7 +437,7 @@ void setup()
   dbg_println();
   serial_show_main_menu();
 
-  // wdt_enable(WDTO_8S);
+  Watchdog.setup(WDT_HARDCYCLE8S);
 
   // read and bin the input port expander to clear any old interrupt
   Wire.requestFrom(PCF_INPUT_ADDRESS , 1);
@@ -514,7 +514,7 @@ void loop()
 {
   digitalWrite(PIN_LED_1, LOW);
 
-  // wdt_reset();
+  Watchdog.clear();
 
   // Poll MQTT
   // should cause callback if there's a new message

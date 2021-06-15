@@ -2,7 +2,7 @@
 # (on debian based dsitros)
 BOARD_TAG = arduino_zero_native
 ARDUINO_PORT = /dev/cu.usbmodem14501
-ARDUINO_LIBS = PubSubClient SPIEEPROM Wire SPI Ethernet ArduinoRS485 ArduinoModbus
+ARDUINO_LIBS = PubSubClient SPIEEPROM Wire SPI Ethernet ArduinoRS485 ArduinoModbus WDTZero
 USER_LIB_PATH := $(realpath ../libraries)
 
 # Embed a reference to the version in the binary

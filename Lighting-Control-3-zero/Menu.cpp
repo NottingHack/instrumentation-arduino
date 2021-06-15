@@ -29,6 +29,7 @@
 
 #include "Arduino.h"
 #include <SPIEEPROM.h>
+#include <WDTZero.h>
 
 #include "Config.h"
 #include "Menu.h"
@@ -363,8 +364,7 @@ void serial_main_menu(char *cmd)
 
   case 99: // "[ 99 ] Reset/reboot"
     serial->println("Reboot....");
-    // wdt_enable(WDTO_2S); // Watchdog abuse...
-    while(1);
+    Watchdog.reboot(); // Watchdog abuse...
     break;
 
   default:
