@@ -26,6 +26,8 @@ void loop();
 boolean set_dev_state(dev_state_t new_state);
 void check_buttons();
 void check_rs485_inputs();
+void read_energery_monitor();
+void sdmRead();
 void send_action(const char *act, char *msg);
 
 // IP of MQTT server

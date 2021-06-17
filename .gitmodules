@@ -28,3 +28,6 @@
 [submodule "libraries/WDTZero"]
 	path = libraries/WDTZero
 	url = git@github.com:dpslwk/WDTZero.git
+[submodule "libraries/SDM_Energy_Meter"]
+	path = libraries/SDM_Energy_Meter
+	url = git@github.com:reaper7/SDM_Energy_Meter.git

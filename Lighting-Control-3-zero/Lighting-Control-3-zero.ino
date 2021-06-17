@@ -50,6 +50,7 @@
 #include <ArduinoRS485.h>
 #include <ArduinoModbus.h>
 #include <WDTZero.h>
+#include <SDM.h>
 #include "Config.h"
 #include "Lighting.h"
 #include "Menu.h"
@@ -58,6 +59,7 @@
 
 EthernetClient _ethClient;
 PubSubClient *_client;
+SDM sdm(Serial, EM_RS485_BAUD, EM_RS485_DE, EM_RS485_SERIAL_CONFIG);
 
 dev_state_t    _dev_state;
 
@@ -72,6 +74,29 @@ uint32_t _output_retained = 0x00000000;
 
 uint16_t _rs485_io_input_state[10];
 uint16_t _rs485_io_input_state_tracking[10];
+
+
+#define NBREG   8    // SET TO the number of parameters in sdm_struct sdmarr[NBREG] and maximum 40
+
+typedef struct {
+  float regvalarr;
+  const uint16_t regarr;
+  const String regtext;
+} sdm_struct;
+
+sdm_struct sdmarr[NBREG] = {
+  {0.00, DDM_PHASE_1_VOLTAGE, "Voltage"}, // V
+  {0.00, DDM_PHASE_1_CURRENT, "Current"}, // A
+  {0.00, DDM_PHASE_1_POWER, "Power"}, // Kw
+  {0.00, DDM_PHASE_1_REACTIVE_POWER, "ReactivePower"}, // Var
+  {0.00, DDM_PHASE_1_POWER_FACTOR, "PowerFactor"},
+  {0.00, DDM_FREQUENCY, "Frequency"}, // Hz
+  {0.00, DDM_IMPORT_ACTIVE_ENERGY, "TotalActivePower"}, // Kwh
+  {0.00, DDM_IMPORT_REACTIVE_ENERGY, "TotalReactivePower"}, // Kvarh
+};
+
+bool em_read_done = false;
+uint8_t em_publish_tracking = 0;
 
 /****************************************************
  * callbackMQTT
@@ -463,6 +488,8 @@ void setup()
     }
   }
 
+  sdm.begin();
+
   // digitalWrite(PIN_LED_0, LOW);
   // digitalWrite(PIN_LED_1, LOW);
   // digitalWrite(PIN_LED_2, LOW);
@@ -674,6 +701,64 @@ void check_rs485_inputs()
 
   node++;
   last_rs485_read = millis();
+}
+
+void read_energery_monitor()
+{
+  static uint32_t last_energy_monitor_read;
+  char msg[10];
+
+  if (_energy_monitor_enabled != true)
+    return;
+
+  if ((millis() - last_energy_monitor_read) >= EM_RS485_READ_INTERVAL && ! em_read_done) {
+    sdmRead();
+    last_energy_monitor_read = millis();
+
+    return;
+  }
+
+  if (em_read_done) {
+    if (em_publish_tracking == NBREG) {
+      em_publish_tracking = 0;
+    }
+
+    sprintf(msg, "%.2f", sdmarr[em_publish_tracking].regvalarr);
+
+    int tt_len = strlen(tool_topic);
+    strcpy(tool_topic+tt_len, "/EM/");
+    strcpy(tool_topic+tt_len+4, sdmarr[em_publish_tracking].regtext.c_str());
+    _client->publish(tool_topic, (uint8_t*) msg, strlen(msg));
+    tool_topic[tt_len] = '\0';
+
+    ++em_publish_tracking;
+    if (em_publish_tracking == NBREG) {
+      em_read_done = false;
+    }
+  }
+}
+
+void sdmRead()
+{
+  float tmpval = NAN;
+
+  for (uint8_t i = 0; i < NBREG; i++) {
+    tmpval = sdm.readVal(sdmarr[i].regarr);
+
+    if (isnan(tmpval))
+      sdmarr[i].regvalarr = 0.00;
+    else
+      sdmarr[i].regvalarr = tmpval;
+
+    yield();
+  }
+
+  if (sdm.getErrCount(true)) {
+    // non zero error count trying to do these reads
+    sdm.clearErrCount();
+  } else {
+    em_read_done = true;
+  }
 }
 
 // Publish <msg> to topic "<tool_topic>/<act>"
