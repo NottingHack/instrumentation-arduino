@@ -158,7 +158,7 @@ void handle_set(char* channel, byte* payload, int length)
 
   // update chan
   _output_retained |= (1UL<<(chan));
-  if (strncmp_P((char*)payload, sTOGGLE, strlen_P(sTOGGLE)) == 0){
+  if (strncmp_P((char*)payload, sTOGGLE, strlen_P(sTOGGLE)) == 0) {
     // toggle bit
     _output_state ^= (1UL<<(chan));
   } else if (strncmp_P((char*)payload, sON, strlen_P(sON)) == 0) {
@@ -409,8 +409,9 @@ void setup()
   pinMode(PIN_LED_3, OUTPUT);
   pinMode(PIN_INPUT_INT, INPUT);
   pinMode(EM_SO, INPUT);
-  pinMode(SPI_EEPROM_SS, HIGH);
-  pinMode(10, HIGH);
+  pinMode(SPI_EEPROM_SS, OUTPUT);
+  pinMode(10, OUTPUT);
+  pinMode(EM_RS485_RE, INPUT);
 
   digitalWrite(PIN_LED_0, HIGH);
   digitalWrite(PIN_LED_1, HIGH);
@@ -623,84 +624,87 @@ void check_rs485_inputs()
   static uint32_t last_rs485_read;
   static uint8_t node;
   uint16_t old_rs485_input_state;
-  int16_t input_read;
+  int32_t input_read;
 
 
-  if (_rs485_io_count < 1 || _rs485_io_count > 10)
+  if (_rs485_io_count < 1 || _rs485_io_count > 10) {
     return;
+  }
 
   if ((millis() - last_rs485_read) < RS485_READ_INTERVAL) {
     return;
   }
 
-  if (node >= _rs485_io_count)
+  last_rs485_read = millis();
+
+  if (node >= _rs485_io_count) {
     node = 0;
-
-  for (int node = 0; node < _rs485_io_count; node++)
-  {
-    old_rs485_input_state = _rs485_io_input_state[node];
-
-    digitalWrite(PIN_LED_3, LOW);
-    input_read = ModbusRTUClient.inputRegisterRead(10+node, 0x00);
-    digitalWrite(PIN_LED_3, HIGH);
-
-    if (input_read == -1) {
-      digitalWrite(PIN_LED_2, LOW);
-      continue;
-    }
-    digitalWrite(PIN_LED_2, HIGH);
-
-    _rs485_io_input_state[node] = input_read;
-
-    // find out which input has changed if any
-    for (int input_channel = 0; input_channel < 16; ++input_channel)
-    {
-      if ((old_rs485_input_state & ( 1UL << input_channel )) != ((uint16_t) input_read & ( 1UL << input_channel )) )
-      {
-        publish_rs485_input_state(node, input_channel);
-        // check input mapping and update outputs
-        if (!(input_read & ( 1UL << input_channel ))) // low == pressed
-        {
-          if ((_rs485_io_input_enables[node] & (1UL<<input_channel)) == 0)
-          {
-            uint32_t _override_state = _rs485_io_override_states[node][input_channel];
-            // if we are tracking the state of this input pin is enabled (low == enabled)
-            // and this the second press
-            if (((_rs485_io_input_statefullness[node] & (1UL<<input_channel)) == 0) && ((_rs485_io_input_state_tracking[node] & (1UL<<input_channel)) != 0))
-            {
-              // flip the output state requests
-              _override_state = ~_override_state;
-            }
-
-            for (uint32_t chan = 0; chan <= 31; ++chan)
-            {
-              uint32_t chanMask = 1UL<<chan;
-              if (_rs485_io_override_masks[node][input_channel] & chanMask) {
-                if (_override_state & chanMask) {
-                  _output_state |= chanMask;
-                } else {
-                  _output_state &= ~chanMask;
-                }
-                update_outputs(chan);
-                char channel[3];
-                sprintf(channel, "%02lu", chan);
-                publish_output_state(channel);
-              }
-            }
-          }
-
-          // toggle tracking state bit for this input pin
-          _rs485_io_input_state_tracking[node] ^= (1UL << input_channel);
-        }
-      }
-    }
-
-    // clear the input latch on the node
-    ModbusRTUClient.holdingRegisterWrite(10+node, 0x00, 1);
   }
 
-  node++;
-  last_rs485_read = millis();
+  digitalWrite(PIN_LED_3, LOW);
+  input_read = ModbusRTUClient.inputRegisterRead(10+node, 0x00);
+  digitalWrite(PIN_LED_3, HIGH);
+
+  if (input_read == -1) {
+    digitalWrite(PIN_LED_2, LOW); // Bad read
+    ++node; // mode onto next node
+
+    return;
+  }
+  digitalWrite(PIN_LED_2, HIGH); // Good read
+
+  old_rs485_input_state = _rs485_io_input_state[node];
+  _rs485_io_input_state[node] = input_read;
+
+  // find out which input has changed if any
+  for (int input_channel = 0; input_channel < 16; ++input_channel)
+  {
+    if ((old_rs485_input_state & ( 1UL << input_channel )) != ((uint16_t) input_read & ( 1UL << input_channel )) )
+    {
+      publish_rs485_input_state(node, input_channel);
+      // check input mapping and update outputs
+      if (!(_rs485_io_input_state[node] & ( 1UL << input_channel ))) // low == pressed
+      {
+        if ((_rs485_io_input_enables[node] & (1UL<<input_channel)) == 0)
+        {
+          uint32_t _override_state = _rs485_io_override_states[node][input_channel];
+          // if we are tracking the state of this input pin is enabled (low == enabled)
+          // and this the second press
+          if (((_rs485_io_input_statefullness[node] & (1UL<<input_channel)) == 0) && ((_rs485_io_input_state_tracking[node] & (1UL<<input_channel)) != 0))
+          {
+            // flip the output state requests
+            _override_state = ~_override_state;
+          }
+
+          for (uint32_t chan = 0; chan <= 31; ++chan)
+          {
+            uint32_t chanMask = 1UL<<chan;
+            if (_rs485_io_override_masks[node][input_channel] & chanMask) {
+              if (_override_state & chanMask) {
+                _output_state |= chanMask;
+              } else {
+                _output_state &= ~chanMask;
+              }
+              update_outputs(chan);
+              char channel[3];
+              sprintf(channel, "%02lu", chan);
+              publish_output_state(channel);
+              yield();
+            }
+          }
+        }
+
+        // toggle tracking state bit for this input pin
+        _rs485_io_input_state_tracking[node] ^= (1UL << input_channel);
+      }
+      yield();
+    }
+  }
+
+  // clear the input latch on the node
+  ModbusRTUClient.holdingRegisterWrite(10+node, 0x00, 1);
+
+  ++node;
 }
 
 void read_energery_monitor()
@@ -708,8 +712,9 @@ void read_energery_monitor()
   static uint32_t last_energy_monitor_read;
   char msg[10];
 
-  if (_energy_monitor_enabled != true)
+  if (_energy_monitor_enabled != true) {
     return;
+  }
 
   if ((millis() - last_energy_monitor_read) >= EM_RS485_READ_INTERVAL && ! em_read_done) {
     sdmRead();
