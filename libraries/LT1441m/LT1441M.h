@@ -45,7 +45,7 @@
 #define  LT1441M_h
 
 //Uncomment for debug prints
-#define DEBUG_PRINT1
+// #define DEBUG_PRINT1
 
 #include <Arduino.h>
 
