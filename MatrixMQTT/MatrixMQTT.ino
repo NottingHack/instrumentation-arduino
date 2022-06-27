@@ -59,6 +59,12 @@
     007 - added door button handeling   11/10/2012
             now subscribes and publishes to
             nh/gk/DoorButton
+    008 - flash fixes after 2022 hickup 27/06/2022
+            pde > ino
+            baud rate is now 115200
+            disable DEBUG_PRINT1 in LT1441M
+
+
 
 
  Known issues:
@@ -132,7 +138,7 @@ OneWire oneWire(ONE_WIRE_BUS);
 DallasTemperature dallas(&oneWire);
 
 // Number of temperature devices found
-int numberOfDevices;
+int numberOfDevices = 0;
 // array to store found address
 DeviceAddress tempAddress[10];
 
@@ -511,6 +517,10 @@ uint8_t bufferFloat(double number, uint8_t digits, uint8_t p)
  ****************************************************/
 void getTemps()
 {
+    if (numberOfDevices == 0) {
+        return;
+    }
+
     if ( (millis() - tempTimeout) > TEMPREATURE_TIMEOUT ) {
         tempTimeout = millis();
         dallas.requestTemperatures(); // Send the command to get temperatures
@@ -657,20 +667,20 @@ void pollDoorBell()
 */
     } else if(doorButtonState == DOOR_STATE_OUTER) {
 
-      if((millis() - doorTimeOut) > DOOR_BUTTON_DELAY)
-      {
-        /* Check pin is still LOW */
-        if (digitalRead(DOOR_BUTTON) == LOW)
+        if((millis() - doorTimeOut) > DOOR_BUTTON_DELAY)
         {
-          // clear state
-          doorButtonState = DOOR_STATE_NONE;
-          client.publish(P_DOOR_BUTTON, DOOR_OUTER);
-        } else
-        {
-          /* Pin not low - probably just noise */
-          doorButtonState = DOOR_STATE_NONE;
+            /* Check pin is still LOW */
+            if (digitalRead(DOOR_BUTTON) == LOW)
+            {
+              // clear state
+                doorButtonState = DOOR_STATE_NONE;
+                client.publish(P_DOOR_BUTTON, DOOR_OUTER);
+            } else
+            {
+              /* Pin not low - probably just noise */
+                doorButtonState = DOOR_STATE_NONE;
+            }
         }
-      }
 
 /*
         digitalWrite(DOOR_BELL, HIGH);
@@ -774,17 +784,17 @@ void setup()
     // let everything else settle
     delay(100);
 
-    attachInterrupt(1, doorButton, FALLING);
+    attachInterrupt(digitalPinToInterrupt(DOOR_BUTTON), doorButton, FALLING);
     myMatrix.cascadeStart(0);
     myMatrix.cascadeStart(1);
 
+  Serial.println("Setup done");
 
 } // end void setup()
 
 
 void loop()
 {
-
     // Poll
     //poll();
 

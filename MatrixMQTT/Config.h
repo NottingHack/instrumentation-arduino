@@ -66,7 +66,7 @@ byte ip[]     = { 192, 168, 0, 11 };
  #define RAEO 12
  #define RSI 13 
  */
-/* pin map for mega with netowrk sheild */
+/* pin map for mega with network shield */
 #define GSI 34
 #define GAEO 32
 #define LATCH 30
@@ -84,7 +84,7 @@ byte ip[]     = { 192, 168, 0, 11 };
 #define XRF_BAUD 9600
 #define XRF_POWER_PIN 8
 
-//LLAP messgaes are 12 char's long + NULL terminator
+//LLAP messages are 12 char's long + NULL terminator
 #define LLAP_BUFFER_LENGTH 13
 #define LLAP_DEVID_LENGTH 2
 #define LLAP_DATA_LENGTH 9
@@ -97,7 +97,7 @@ byte ip[]     = { 192, 168, 0, 11 };
 #define DOOR_BUTTON_TIMEOUT 5000
 #define DOOR_BUTTON_DELAY 100 /* How long to wait before ringing the bell */
 unsigned long doorTimeOut = 0;
-boolean doorButtonState = 0;
+volatile uint8_t doorButtonState = 0;
 
 #define DOOR_STATE_NONE 0
 #define DOOR_STATE_INNER 1
