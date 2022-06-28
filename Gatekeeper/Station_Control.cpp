@@ -170,7 +170,7 @@ void remapKeyp()
 	writeEEPROM(11, 0x39);	// 9
 	writeEEPROM(12, 0x34);	// 4
 	writeEEPROM(13, 0x35);	// 5
-	writeEEPROM(14, 0x2B);	// 6
+	writeEEPROM(14, 0x36);	// 6
 	writeEEPROM(15, 0x31);	// 1
 	writeEEPROM(16, 0x32);	// 2
 	writeEEPROM(17, 0x33);	// 3
