@@ -163,7 +163,7 @@ uint8_t RDM880::readResponse()
 
     checksum = (_responseBuf[STATION_BYTE] ^ _responseBuf[LEN_BYTE]); 
 
-    for (uint8_t i; i<_responseBuf[2]; i++) {
+    for (uint8_t i=0; i < _responseBuf[LEN_BYTE]; i++) {
         if (_myStream->available() > 0) {
             _responseBuf[responsePtr] = _myStream->read(); // grab the data
             checksum = checksum ^ _responseBuf[responsePtr++]; // add it into our checksum calc
