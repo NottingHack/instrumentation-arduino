@@ -83,7 +83,7 @@ byte readEEPROM(byte addr)
 
 void changeI2CAddress(byte value)
 {
-	Wire.beginTransmission(0x12); // transmit to device 12
+	Wire.beginTransmission(0x00); // transmit to device 12
 	Wire.write(0xff); // signal command follows
 	Wire.write(0x03); // send the command write
 	// EEPROM
@@ -91,7 +91,7 @@ void changeI2CAddress(byte value)
 	Wire.write(value); // send the new I2C address
 	Wire.endTransmission(); // stop transmitting
 	delay(1);
-	Wire.beginTransmission(0x12); // transmit to device 12
+	Wire.beginTransmission(0x00); // transmit to device 12
 	Wire.write(0xff); // signal command follows
 	Wire.write(0xf1); // send the reset
 	Wire.endTransmission(); // stop transmitting
