@@ -1,4 +1,4 @@
-/****************************************************	
+/****************************************************
  * sketch = Gatekeeper
  *
  * Nottingham Hackspace
@@ -30,26 +30,26 @@
         003 - Move to Arduino 1.x + add LCD wordwrap
  
  Known issues:
-	DEBUG_PRTINT and USB Serial Will NOT WORK if the RFID module is plugged in as this uses the hardware serial
-	All code is based on official Ethernet library not the nanode's ENC28J60, we need to port the MQTT PubSubClient
-	
+    DEBUG_PRTINT and USB Serial Will NOT WORK if the RFID module is plugged in as this uses the hardware serial
+    All code is based on official Ethernet library not the nanode's ENC28J60, we need to port the MQTT PubSubClient
+
  
  Future changes:
-	Find a better way than 3 sec delay to get keys in buffer
-		Make keypad interactive with LCD and use ent/clr to build pin numbers? 
-		Requires rewrite of 001 lcd default handling
-	Better Handling of the Backdoor
-		Allow change via mqtt, store in eeprom
+    Find a better way than 3 sec delay to get keys in buffer
+        Make keypad interactive with LCD and use ent/clr to build pin numbers?
+        Requires rewrite of 001 lcd default handling
+    Better Handling of the Backdoor
+        Allow change via mqtt, store in eeprom
  
  ToDo:
-	Add Last Will and Testament
-	Add msg unlock(); 
-		Something like unlock(char* who); so we can publish with the door open/timeout?
-	
-	
+    Add Last Will and Testament
+    Add msg unlock();
+        Something like unlock(char* who); so we can publish with the door open/timeout?
+
+
  Authors:
-	'RepRap' Matt      dps.lwk at gmail.com
-	John Crouchley    johng at crouchley.me.uk
+    'RepRap' Matt      dps.lwk at gmail.com
+    John Crouchley    johng at crouchley.me.uk
  
  */
 
@@ -98,42 +98,43 @@ RDM880 _rdm_reader(&Serial);
 
 void callbackMQTT(char* topic, byte* payload, unsigned int length) {
 
-	// handle message arrived
-	if (!strcmp(S_UNLOCK, topic)) {
-		// check for unlock, rest of payload is msg for lcd
-		if (strncmp(UNLOCK_STRING, (char*)payload, strlen(UNLOCK_STRING)) == 0) {
-			// strip UNLOCK_STRING, send rest to LCD
-			char msg[length - sizeof(UNLOCK_STRING) + 2];
-			memset(msg, 0, sizeof(msg));
-			for(int i = 0; i < (sizeof(msg) - 1); i++) {
-				msg[i] = (char)payload[i + sizeof(UNLOCK_STRING) -1];
-			} // end for
-			
-			updateLCD(msg);
-			// unlock the door
-			unlock();
-		} else if (strncmp(EEPROMRESET, (char*)payload, strlen(EEPROMRESET)) == 0) {
-			// updateLCD("EEPROM");
-                        // resetEEPROM();
-			// remapKeyp();
-			// modeResetLCD();
-		} else {
-			char msg[length + 1];
-			memset(msg, 0, sizeof(msg));
-			for(int i = 0; i < (sizeof(msg)-1); i++) {
-				msg[i] = (char)payload[i];
-			} // end for
-			
-			// send the whole payload to LCD
-			updateLCD(msg);
-			
-		}// end if else
-	} else  if (!strcmp(S_STATUS, topic)) {
-	  // check for Status request,
-		if (strncmp(STATUS_STRING, (char*)payload, strlen(STATUS_STRING)) == 0) {
-			client.publish(P_STATUS, RUNNING);
-		} // end if
-	} else if (!strcmp(S_DOOR_BELL, topic)) 
+    // handle message arrived
+    if (!strcmp(S_UNLOCK, topic)) {
+        // check for unlock, rest of payload is msg for lcd
+        if (strncmp(UNLOCK_STRING, (char*)payload, strlen(UNLOCK_STRING)) == 0) {
+            // strip UNLOCK_STRING, send rest to LCD
+            char msg[length - sizeof(UNLOCK_STRING) + 2];
+            memset(msg, 0, sizeof(msg));
+            for(int i = 0; i < (sizeof(msg) - 1); i++) {
+                msg[i] = (char)payload[i + sizeof(UNLOCK_STRING) -1];
+            } // end for
+
+            updateLCD(msg);
+            // unlock the door
+            unlock();
+        } else if (strncmp(EEPROMRESET, (char*)payload, strlen(EEPROMRESET)) == 0) {
+            updateLCD("EEPROM");
+            resetEEPROM();
+            changeI2CAddress(0x12);
+            remapKeyp();
+            modeResetLCD();
+        } else {
+            char msg[length + 1];
+            memset(msg, 0, sizeof(msg));
+            for(int i = 0; i < (sizeof(msg)-1); i++) {
+                msg[i] = (char)payload[i];
+            } // end for
+
+            // send the whole payload to LCD
+            updateLCD(msg);
+
+        }// end if else
+    } else  if (!strcmp(S_STATUS, topic)) {
+      // check for Status request,
+        if (strncmp(STATUS_STRING, (char*)payload, strlen(STATUS_STRING)) == 0) {
+            client.publish(P_STATUS, RUNNING);
+        } // end if
+    } else if (!strcmp(S_DOOR_BELL, topic))
         {
           // Request to ring door bell - either outer or rear, but not inner, as that button is connected to this arduino
           if (!strncmp(DOOR_OUTER, (char*)payload, strlen(DOOR_OUTER)))        // Outer door bell
@@ -142,7 +143,7 @@ void callbackMQTT(char* topic, byte* payload, unsigned int length) {
             doorButtonState = DOOR_STATE_REAR;
         }
           
-	
+
 } // end void callback(char* topic, byte* payload,int length)
 
 
@@ -151,49 +152,49 @@ void setup()
     // Enable watchdog timer
     wdt_enable(WDTO_8S);
         
-	// Start ethernet
-	Ethernet.begin(mac, ip);
-	
-	// Setup Pins
-	pinMode(DOOR_BELL, OUTPUT);
-	pinMode(DOOR_BUTTON, INPUT);
-	pinMode(BLUE_LED, OUTPUT);
-	pinMode(RED_LED, OUTPUT);
-	pinMode(MAG_CON, INPUT);
-	pinMode(MAG_REL, OUTPUT);
-	pinMode(KEYPAD, INPUT);
-	pinMode(LAST_MAN, INPUT);
-	pinMode(SPEAKER, OUTPUT);
-	
-	// Set default output's
-	digitalWrite(DOOR_BELL, LOW);
-	digitalWrite(SPEAKER, HIGH);
-	lockDoor();
-	
-	// Start I2C and display system detail
-	Wire.begin();
-	clearLCD();
-	updateLCD(VERSION_STRING);
-	
-	// Start RFID Serial
-	Serial.begin(9600);
+    // Start ethernet
+    Ethernet.begin(mac, ip);
+
+    // Setup Pins
+    pinMode(DOOR_BELL, OUTPUT);
+    pinMode(DOOR_BUTTON, INPUT);
+    pinMode(BLUE_LED, OUTPUT);
+    pinMode(RED_LED, OUTPUT);
+    pinMode(MAG_CON, INPUT);
+    pinMode(MAG_REL, OUTPUT);
+    pinMode(KEYPAD, INPUT);
+    pinMode(LAST_MAN, INPUT);
+    pinMode(SPEAKER, OUTPUT);
+
+    // Set default output's
+    digitalWrite(DOOR_BELL, LOW);
+    digitalWrite(SPEAKER, HIGH);
+    lockDoor();
+
+    // Start I2C and display system detail
+    Wire.begin();
+    clearLCD();
+    updateLCD(VERSION_STRING);
+
+    // Start RFID Serial
+    Serial.begin(9600);
         
         // delay to make sure ethernet is awake
-	delay(100);
-	// Start MQTT and say we are alive
-	checkMQTT();
+    delay(100);
+    // Start MQTT and say we are alive
+    checkMQTT();
     /*
     if (client.connect(CLIENT_ID)) {
-		client.publish(P_STATUS,RESTART);
-		client.subscribe(S_UNLOCK);
-		client.subscribe(S_STATUS);
-	} // end if
-	*/
-	// Setup Interrupt
-	// let everything else settle
-	delay(100);
-	attachInterrupt(1, doorButton, RISING);
-	
+        client.publish(P_STATUS,RESTART);
+        client.subscribe(S_UNLOCK);
+        client.subscribe(S_STATUS);
+    } // end if
+    */
+    // Setup Interrupt
+    // let everything else settle
+    delay(100);
+    attachInterrupt(digitalPinToInterrupt(DOOR_BUTTON), doorButton, RISING);
+
 } // end void setup()
 
 void loop()
@@ -202,35 +203,35 @@ void loop()
     wdt_reset();
         
     // are we still connected to MQTT
-	checkMQTT();
-    
-	// Poll RFID
-	pollRFID();
-	
-	// Poll MQTT
-	// should cause callback if theres a new message
-	client.loop();
-	
-	// Poll Keypad
-	// do we have a pin number
-	pollKeypad();
-	
-	// Poll Last Man Out
-	// anyone in the building
-	pollLastMan();
-	
-	// Poll LCD
-	// updates to default msg after time out
-	updateLCD(NULL);
-	
-	// Poll Door Bell
-	// has the button been press
-	pollDoorBell();
-  
-	// If the door has changed state, send an update
-	updateDoorState(false);
+    checkMQTT();
 
-	
+    // Poll RFID
+    pollRFID();
+    
+    // Poll MQTT
+    // should cause callback if theres a new message
+    client.loop();
+
+    // Poll Keypad
+    // do we have a pin number
+    pollKeypad();
+
+    // Poll Last Man Out
+    // anyone in the building
+    pollLastMan();
+
+    // Poll LCD
+    // updates to default msg after time out
+    updateLCD(NULL);
+
+    // Poll Door Bell
+    // has the button been press
+    pollDoorBell();
+  
+    // If the door has changed state, send an update
+    updateDoorState(false);
+
+
 } // end void loop()
 
 
@@ -266,38 +267,39 @@ void pollRFID()
  ****************************************************/
 void pollKeypad()
 {
-	if(digitalRead(KEYPAD)) {
-		// HACK to get keys in buffer, ToDo find a better way than 3 sec delay
-		delay(3000);
-		// find out how many keys were pressed
-		byte n = readNumKeyp();
-		char pin[n+1];
-		//zero the array to make sure we get the NULL terminator
-		memset(pin, 0, sizeof(pin));
-		char c;
-		for(byte i = 0; i < n; i++){
-			// filter ent and clr keys as not used rite now
-			c = readKeyp();
-			if ( c != 0x2A && c != 0x23 )
-				pin[i] = c;
-			
-			//pin[i] =readKeyp();
-		} // end for
-		
-		//add null terminator <-- this didn't work when tested
-		//pin[n+1] = 0;
-		
-		//check backdoor, note strcmp() returns 0 if true
-		if(!strcmp(pin, BACKDOOR)){
-			// just unlock the door
-			unlock();	
-			
-		} else {
-			//publish key pad output to MQTT
-			client.publish(P_KEYPAD, pin);
-			
-		}// end else
-	} // end if
+    if(digitalRead(KEYPAD)) {
+        // HACK to get keys in buffer, ToDo find a better way than 3 sec delay
+        delay(3000);
+        // find out how many keys were pressed
+        byte n = readNumKeyp();
+        char pin[n+1];
+        //zero the array to make sure we get the NULL terminator
+        memset(pin, 0, sizeof(pin));
+        char c;
+        byte j = 0;
+        for(byte i = 0; i < n; i++){
+            // filter ent and clr keys as not used rite now
+            c = readKeyp();
+            if ( c != 0x2A && c != 0x23 )
+                pin[j++] = c;
+
+            //pin[i] =readKeyp();
+        } // end for
+
+        //add null terminator
+        pin[j] = 0;
+
+        //check backdoor, note strcmp() returns 0 if true
+        if(!strcmp(pin, BACKDOOR)){
+            // just unlock the door
+            unlock();
+
+        } else {
+            //publish key pad output to MQTT
+            client.publish(P_KEYPAD, pin);
+
+        }// end else
+    } // end if
 } // end void pollKeypad()
 
 
@@ -307,33 +309,33 @@ void pollKeypad()
  ****************************************************/
 void pollLastMan()
 {
-	boolean state = digitalRead(LAST_MAN);
-	
-	// check see if the magnetic contact has changed
-	if(lastManState != state) {
+    boolean state = digitalRead(LAST_MAN);
+
+    // check see if the magnetic contact has changed
+    if(lastManState != state) {
         // reset debounce timmmer
         lastManTimeOut = millis();
 
-		// Update State
-		lastManState = state;
+        // Update State
+        lastManState = state;
         lastManStateSent = false;
-		
-	} // end if
+
+    } // end if
     
     if (lastManStateSent == false && lastManState != lastManStateOld && (millis() - lastManTimeOut) > LAST_MAN_TIMEOUT) {
         lastManStateSent = true;
         lastManStateOld = lastManState;
         // stable for at least LAST_MAN_TIMEOUT so publish to MQTT
-		switch (lastManStateOld) {
-			case OUT:
+        switch (lastManStateOld) {
+            case OUT:
                 client.publish(P_LAST_MAN_STATE, "Last Out");
                 break;
-			case IN:
+            case IN:
                 client.publish(P_LAST_MAN_STATE, "First In");
                 break;
-			default:
+            default:
                 break;
-		} // end switch
+        } // end switch
     }
 } // end void pollLastMan()
 
@@ -422,11 +424,11 @@ void checkMQTT()
  ****************************************************/
 void doorButton()
 {
-	if((millis() - doorTimeOut) > DOOR_BUTTON_TIMEOUT) {
+    if((millis() - doorTimeOut) > DOOR_BUTTON_TIMEOUT) {
           // reset time out
           doorTimeOut = millis();
           doorButtonState = DOOR_STATE_INNER;
-	} // end if
+    } // end if
 } // end void doorButton()
 
 
@@ -556,26 +558,26 @@ void print_wrapped(char *msg)
  ****************************************************/
 void unlock()
 {
-	// store current time
-	unsigned long timeOut = millis();
+    // store current time
+    unsigned long timeOut = millis();
 
-	// unlock the door
-	unlockDoor();
+    // unlock the door
+    unlockDoor();
 
-	// Send new door state
-	updateDoorState(true);
+    // Send new door state
+    updateDoorState(true);
 
-	// keep it open until we timeout or someone open the door
-	do {
-		// check to see if someone opened the door
-		if(digitalRead(MAG_CON) == OPEN) {
-			break;
-		} // end if
+    // keep it open until we timeout or someone open the door
+    do {
+        // check to see if someone opened the door
+        if(digitalRead(MAG_CON) == OPEN) {
+            break;
+        } // end if
 
-	}while((millis() - timeOut) < MAG_REL_TIMEOUT);
+    }while((millis() - timeOut) < MAG_REL_TIMEOUT);
 
-	// lock the door
-	lockDoor();
+    // lock the door
+    lockDoor();
 } // end void unlock()
 
 
@@ -585,10 +587,10 @@ void unlock()
  ****************************************************/
 void lockDoor()
 {
-	digitalWrite(BLUE_LED, LOW);
-	digitalWrite(RED_LED, HIGH);
-	digitalWrite(MAG_REL, LOW);
-	doorLocked = true;
+    digitalWrite(BLUE_LED, LOW);
+    digitalWrite(RED_LED, HIGH);
+    digitalWrite(MAG_REL, LOW);
+    doorLocked = true;
 } // end void lockDoor()
 
 /**************************************************** 
@@ -597,10 +599,10 @@ void lockDoor()
  ****************************************************/
 void unlockDoor()
 {
-	digitalWrite(RED_LED, LOW);
-	digitalWrite(BLUE_LED, HIGH);
-	digitalWrite(MAG_REL, HIGH);
-	doorLocked = false;
+    digitalWrite(RED_LED, LOW);
+    digitalWrite(BLUE_LED, HIGH);
+    digitalWrite(MAG_REL, HIGH);
+    doorLocked = false;
 } // end void unlockDoor()
 
 
