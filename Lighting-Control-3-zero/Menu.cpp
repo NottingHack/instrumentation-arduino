@@ -47,7 +47,7 @@ extern uint8_t _input_enables;
 extern uint32_t _override_masks[8];
 extern uint32_t _override_states[8];
 extern uint8_t _input_statefullness;
-extern bool _energy_monitor_enabled;
+extern uint8_t _energy_monitor_enabled;
 extern uint8_t _rs485_io_count;
 extern uint16_t _rs485_io_input_enables[10];
 extern uint32_t _rs485_io_override_masks[10][16];
@@ -430,7 +430,7 @@ void serial_show_settings()
   serial_show_override_settings();
 
   serial->print(F("Energy Monitor Enabled: is currently "));
-  if (_energy_monitor_enabled == 0)
+  if (_energy_monitor_enabled == true)
   {
     serial->print(F("enabled ("));
   }
@@ -1181,11 +1181,11 @@ void set_energy_monitor(bool enable)
 {
   if (enable)
   {
-    _energy_monitor_enabled = 0;
+    _energy_monitor_enabled = true;
   }
   else
   {
-    _energy_monitor_enabled = 1;
+    _energy_monitor_enabled = false;
   }
 
   // digitalWrite(PIN_LED_2, HIGH);

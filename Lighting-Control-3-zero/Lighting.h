@@ -46,7 +46,7 @@ uint32_t _override_masks[8];
 uint32_t _override_states[8];
 uint8_t _input_statefullness;
 
-bool _energy_monitor_enabled;
+uint8_t _energy_monitor_enabled;
 uint8_t _rs485_io_count;
 uint16_t _rs485_io_input_enables[10];
 uint32_t _rs485_io_override_masks[10][16];

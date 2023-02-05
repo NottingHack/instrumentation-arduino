@@ -95,8 +95,8 @@ sdm_struct sdmarr[NBREG] = {
   {0.00, DDM_IMPORT_REACTIVE_ENERGY, "TotalReactivePower"}, // Kvarh
 };
 
-bool em_read_done = false;
-uint8_t em_publish_tracking = 0;
+bool _em_read_done = false;
+uint8_t _em_publish_tracking = 0;
 
 /****************************************************
  * callbackMQTT
@@ -420,6 +420,7 @@ void setup()
   digitalWrite(PIN_INPUT_INT, HIGH);
   digitalWrite(SPI_EEPROM_SS, HIGH);
   digitalWrite(10, HIGH);
+  // digitalWrite(EM_RS485_RE, LOW);
 
   dbg_init();
   delay(4000);
@@ -645,8 +646,8 @@ void check_rs485_inputs()
   input_read = ModbusRTUClient.inputRegisterRead(10+node, 0x00);
   digitalWrite(PIN_LED_3, HIGH);
 
+  digitalWrite(PIN_LED_2, LOW); // clear good read
   if (input_read == -1) {
-    digitalWrite(PIN_LED_2, LOW); // Bad read
     ++node; // mode onto next node
 
     return;
@@ -712,33 +713,33 @@ void read_energery_monitor()
   static uint32_t last_energy_monitor_read;
   char msg[10];
 
-  if (_energy_monitor_enabled != true) {
+  if (_energy_monitor_enabled == false) {
     return;
   }
 
-  if ((millis() - last_energy_monitor_read) >= EM_RS485_READ_INTERVAL && ! em_read_done) {
+  if ((millis() - last_energy_monitor_read) >= EM_RS485_READ_INTERVAL && ! _em_read_done) {
     sdmRead();
     last_energy_monitor_read = millis();
 
     return;
   }
 
-  if (em_read_done) {
-    if (em_publish_tracking == NBREG) {
-      em_publish_tracking = 0;
+  if (_em_read_done) {
+    if (_em_publish_tracking == NBREG) {
+      _em_publish_tracking = 0;
     }
 
-    sprintf(msg, "%.2f", sdmarr[em_publish_tracking].regvalarr);
+    sprintf(msg, "%.2f", sdmarr[_em_publish_tracking].regvalarr);
 
     int tt_len = strlen(tool_topic);
     strcpy(tool_topic+tt_len, "/EM/");
-    strcpy(tool_topic+tt_len+4, sdmarr[em_publish_tracking].regtext.c_str());
+    strcpy(tool_topic+tt_len+4, sdmarr[_em_publish_tracking].regtext.c_str());
     _client->publish(tool_topic, (uint8_t*) msg, strlen(msg));
     tool_topic[tt_len] = '\0';
 
-    ++em_publish_tracking;
-    if (em_publish_tracking == NBREG) {
-      em_read_done = false;
+    ++_em_publish_tracking;
+    if (_em_publish_tracking == NBREG) {
+      _em_read_done = false;
     }
   }
 }
@@ -762,7 +763,7 @@ void sdmRead()
     // non zero error count trying to do these reads
     sdm.clearErrCount();
   } else {
-    em_read_done = true;
+    _em_read_done = true;
   }
 }
 
