@@ -85,11 +85,11 @@ ThermistorTemperature *TT;
 #define W5100_RESET_PIN 14
 #define S_STATUS        "nh/status/req"
 #define P_STATUS        "nh/status/res"
-#define S_BOOKINGS      "nh/bookings/laser/nownext"
+#define S_BOOKINGS      "nh/bookings/boxfordlaser/nownext"
 #define P_BOOKINGS      "nh/bookings/poll"
 #define P_TEMPERATURE   "nh/temp"
 #define TEMP_FAKE_ID    "9999000000000001"
-#define S_LOCAL_ALERT   "nh/tools/laser/ALERT"
+#define S_LOCAL_ALERT   "nh/tools/boxfordlaser/ALERT"
 #define S_GLOBAL_ALERT  "nh/ALERT"
 
 #define DEV_NAME    "LaserDisplay"
