@@ -31,3 +31,21 @@
 [submodule "libraries/SDM_Energy_Meter"]
 	path = libraries/SDM_Energy_Meter
 	url = git@github.com:reaper7/SDM_Energy_Meter.git
+[submodule "libraries/Adafruit_BusIO"]
+        path = libraries/Adafruit_BusIO
+        url = https://github.com/adafruit/Adafruit_BusIO.git
+[submodule "libraries/SensirionCore"]
+	path = libraries/SensirionCore
+        url = https://github.com/Sensirion/arduino-core.git
+[submodule "libraries/arduino-i2c-scd4x"]
+	path = libraries/arduino-i2c-scd4x
+	url = https://github.com/Sensirion/arduino-i2c-scd4x.git
+[submodule "libraries/SCD4x"]
+	path = libraries/SCD4x
+	url = https://github.com/sparkfun/SparkFun_SCD4x_Arduino_Library.git
+[submodule "libraries/PMAS003"]
+	path = libraries/PMAS003
+	url = https://github.com/RodNalCY/arduino-pmsa003-code.git
+[submodule "libraries/INA219"]
+	path = libraries/INA219
+	url = https://github.com/RobTillaart/INA219.git
