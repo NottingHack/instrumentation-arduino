@@ -8,7 +8,7 @@
 #define PIN_ETH_CS       2  // WizNet Chip Select
 
 #define SDM_DEVICE_ID    1  // SDM Modbus Address
-#define SDM_BAUD      9600  // Modbus Baud Rate
+#define SDM_BAUD     38400  // Modbus Baud Rate
 
 // Locations in EEPROM of various settings
 #define EEPROM_MAC           0 //  6 bytes

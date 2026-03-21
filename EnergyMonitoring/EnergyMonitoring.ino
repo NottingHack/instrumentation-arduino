@@ -71,8 +71,7 @@ void loop() {
   // Frustratingly something in the ModbusMaster library prevents the
   // Watchdog from noticing if it's gotten stuck.
   readNextRegister();
-  if ((currentRegister % 4) == 0)
-    delay(1000);
+  delay(15000 / MAP_SIZE); // We want a new reading for each prometheus pull
 }
 
 void callbackMQTT(char *topic, byte *payload, unsigned int length) {
@@ -130,22 +129,12 @@ void readNextRegister() {
   } value;
   value.i = (high << 16) | low;
 
-#ifdef DEBUG_SERIAL
-  char dbg_msg[128];
-  sprintf(dbg_msg, "reg read success %i", mappings[currentRegister].address);
-  dbg_println(dbg_msg);
-  sprintf(dbg_msg, "... h=%i,l=%i, i=%i, f=", high, low, value.i);
-  dtostrf(value.f, 2, 2, &dbg_msg[strlen(dbg_msg)]);
-  dbg_println(dbg_msg);
-#endif
-
   char topic[64];
   if (mappings[currentRegister].subtopicB == NULL) {
     sprintf(topic, "%s/%s/%s", _base_topic, _dev_name, mappings[currentRegister].subtopicA);
   } else {
     sprintf(topic, "%s/%s/%s/%s", _base_topic, _dev_name, mappings[currentRegister].subtopicA, mappings[currentRegister].subtopicB);
   }
-  dbg_println(topic);
 
   char svalue[10] = {0};
   dtostrf(value.f, 2, 2, &svalue[strlen(svalue)]);
@@ -156,7 +145,7 @@ void readNextRegister() {
 
 void incrRegister() {
   currentRegister++;
-  if (currentRegister >= (MAP_SIZE-1))
+  if (currentRegister > (MAP_SIZE-1))
     currentRegister = 0;
 }
 
